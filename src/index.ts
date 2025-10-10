@@ -7,7 +7,7 @@ dotenv.config();
 
 async function main() {
   try {
-    const targetDate = '2025-09-25'; // 示例日期，可以从环境变量获取
+    const targetDate = process.env.TARGET_DATE || new Date().toISOString().split('T')[0];
     console.log(`开始统计 ${targetDate} 的日报...`);
     // 从环境变量获取项目ID和角色ID
     const projectId = process.env.PROJECT_ID;
