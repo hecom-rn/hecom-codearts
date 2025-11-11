@@ -187,12 +187,12 @@ async function main() {
 
             // 显示当天有进展的工作项详情
             iterationActiveIssues.forEach((issue) => {
-              const doneRate = issue.done_ratio
+              const doneRate = issue.expected_work_hours
+                ? issue.actual_work_hours / issue.expected_work_hours
+                : 0;
+              const displayDoneRate = issue.done_ratio
                 ? issue.done_ratio
-                : issue.expected_work_hours
-                  ? issue.actual_work_hours / issue.expected_work_hours
-                  : 0;
-              const displayDoneRate = Math.round(Math.min(doneRate * 100, 100));
+                : Math.round(Math.min(doneRate * 100, 100));
               console.log(` - ${issue.name} ${displayDoneRate}% ${issue.assigned_user.nick_name}`);
             });
           });
