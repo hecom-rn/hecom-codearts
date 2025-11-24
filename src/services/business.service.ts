@@ -83,10 +83,10 @@ export class BusinessService {
   }
 
   /**
-   * 获取指定日期正在进行中的迭代列表
+   * 获取指定日期之后的迭代列表
    * @param projectId 项目ID
    * @param targetDate 目标日期，格式：YYYY-MM-DD
-   * @returns 正在进行中的迭代列表
+   * @returns 正在进行中的和未来的迭代列表
    */
   async getActiveIterationsOnDate(projectId: string, targetDate: string): Promise<IterationInfo[]> {
     const iterationsResponse = await this.apiService.getIterations(projectId, {
@@ -108,10 +108,10 @@ export class BusinessService {
       }
 
       // 检查目标日期是否在迭代时间范围内
-      const beginTime = new Date(iteration.begin_time).getTime();
+      // const beginTime = new Date(iteration.begin_time).getTime();
       const endTime = new Date(iteration.end_time).getTime();
 
-      return targetDateTime >= beginTime && targetDateTime <= endTime;
+      return targetDateTime <= endTime;
     });
   }
 
