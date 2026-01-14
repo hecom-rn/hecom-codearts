@@ -2,9 +2,10 @@
   "name": "daily-codearts",
   "version": "0.0.1",
   "description": "从CodeArts获取日报信息",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "daily": "ts-node src/daily.ts",
     "work-hour": "ts-node src/workHour.ts",
     "test": "jest",
