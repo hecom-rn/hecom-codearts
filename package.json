@@ -2,22 +2,14 @@
   "name": "daily-codearts",
   "version": "0.0.1",
   "description": "从CodeArts获取日报信息",
-  "main": "dist/index.js",
+  "main": "src/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "daily": "ts-node src/daily.ts",
+    "work-hour": "ts-node src/workHour.ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\"",
-    "format:all": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path .gitignore",
-    "check": "npm run format:check && npm run lint && npm run build",
-    "fix": "npm run format && npm run lint:fix",
-    "clean": "rimraf dist"
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
     "nodejs",
@@ -28,14 +20,14 @@
   "author": "summer88123",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.5.0",
-    "dotenv": "^16.3.1"
+    "axios": "^1.5.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.5",
     "@types/node": "^20.6.3",
     "@typescript-eslint/eslint-plugin": "^6.7.2",
     "@typescript-eslint/parser": "^6.7.2",
+    "dotenv": "^16.3.1",
     "eslint": "^8.49.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-config-standard": "^17.1.0",

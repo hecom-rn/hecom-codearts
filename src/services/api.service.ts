@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import {
+  AddIssueNotesRequest,
+  AddIssueNotesResponse,
   ApiResponse,
   CachedToken,
   HuaweiCloudConfig,
@@ -226,8 +228,8 @@ export class ApiService {
           },
         },
         scope: {
-          domain: {
-            name: this.config.domainName,
+          project: {
+            name: 'cn-north-4',
           },
         },
       },
@@ -468,6 +470,16 @@ export class ApiService {
         limit: 10,
         ...params,
       },
+    });
+  }
+
+  /**
+   * 工作项添加评论
+   */
+  async addIssueNotes(params: AddIssueNotesRequest): Promise<ApiResponse<AddIssueNotesResponse>> {
+    return this.request('/v2/issues/update-issue-notes', {
+      method: 'POST',
+      data: params,
     });
   }
 

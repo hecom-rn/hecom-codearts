@@ -381,3 +381,218 @@ export interface ListProjectIterationsV4Response {
   iterations: IterationInfo[]; // 迭代信息
   total: number; // 迭代总数
 }
+
+// 工作项添加评论相关类型 (AddIssueNotes)
+export interface AddIssueNotesRequest {
+  id: string; // 工作项id
+  notes: string; // 工作项的评论内容
+  projectUUId: string; // 项目的32位uuid
+  type?: string; // 工作项所属项目类型，scrum
+}
+
+export interface UserVO {
+  assigned_nick_name?: string; // 用户昵称
+  first_name?: string; // 用户名
+  id?: number; // 用户数字id
+  identifier?: string; // 用户32位uuid
+  last_name?: string; // 用户姓名
+  name?: string; // 有租户信息的用户名
+}
+
+export interface CustomFieldV2 {
+  name?: string; // 自定义字段
+  value?: string; // 自定义字段对应的值
+  new_name?: string; // 自定义字段修改后的名称
+}
+
+export interface IssueDetailCustomFieldV2 {
+  custom_field?: string; // 自定义字段
+  field_name?: string; // 自定义字段名称
+  value?: string; // 自定义属性对应的值，多个值以英文逗号区分开
+  field_type?: string; // 自定义字段类型
+  description?: string; // 自定义字段描述
+}
+
+export interface DomainVO {
+  id?: number; // 领域id
+  name?: string; // 领域名称
+}
+
+export interface ProjectVO {
+  identifier?: string; // 项目uuid
+  name?: string; // 项目名称
+  id?: number; // 项目数字id
+  project_type?: string; // 项目类型
+}
+
+export interface IterationVO {
+  id?: number; // 工作项的迭代id
+  name?: string; // 工作项的迭代名称
+}
+
+export interface StoryPointVO {
+  id?: number; // 工作项的故事点id
+  name?: string; // 工作项的故事点名称
+}
+
+export interface ModuleVO {
+  id?: number; // 工作项的模块id
+  name?: string; // 工作项的模块名称
+}
+
+export interface ParentIssueVO {
+  id?: number; // 工作项的父工作项id
+  name?: string; // 工作项的父工作项名称
+}
+
+export interface PriorityVO {
+  id?: number; // 工作项的优先级id
+  name?: string; // 工作项的优先级名称
+}
+
+export interface SeverityVO {
+  id?: number; // 工作项的重要程度id
+  name?: string; // 工作项的重要程度名称
+}
+
+export interface StatusVO {
+  id?: number; // 工作项的当前状态id
+  name?: string; // 工作项的当前状态名称
+}
+
+export interface EnvVO {
+  id?: number; // 缺陷发现环境id
+  name?: string; // 缺陷发现环境名称
+}
+
+export interface TrackerVO {
+  id?: number; // 工作项的类型id
+  name?: string; // 工作项的类型名称
+}
+
+export interface IssueAccessoryV2 {
+  attachment_id?: number; // 附件id
+  issue_id?: number; // 工作项数字id
+  creator_num_id?: number; // 附件的上传者数字ID
+  created_date?: string; // 附件创建时间
+  file_name?: string; // 附件名称
+  container_type?: string; // 附件所属类型
+  disk_file_name?: string; // 附件在服务器上实际名称
+  digest?: string; // 附件来源
+  disk_directory?: string; // 附件在服务器上的路径
+  creator_id?: string; // 附件的上传者uuid
+}
+
+export interface IssueDetailResponseV2 {
+  actual_work_hours?: number; // 工作项的实际工时
+  assigned_cc_user?: UserVO[]; // 当前工作项的抄送人
+  assigned_to?: UserVO; // 工作项的当前责任人
+  start_date?: string; // 工作项的预计开始时间，时间戳格式
+  created_on?: string; // 工作项创建时间，时间戳格式
+  author?: UserVO; // 工作项的创建人
+  custom_fields?: CustomFieldV2[]; // 工作项的自定义字段
+  custom_value_new?: IssueDetailCustomFieldV2; // 工作项的自定义字段
+  developer?: UserVO; // 工作项的开发人员
+  domain?: DomainVO; // 工作项的领域信息
+  done_ratio?: number; // 工作项完成度
+  end_time?: string; // 工作项的预计结束时间，时间戳格式
+  expected_work_hours?: number; // 工作项的预计完成工时
+  id?: number; // 工作项id
+  project?: ProjectVO; // 工作项所属项目信息
+  iteration?: IterationVO; // 工作项所属迭代信息
+  story_point?: StoryPointVO; // 工作项的故事点信息
+  module?: ModuleVO; // 工作项的模块信息
+  subject?: string; // 工作项的标题
+  parent_issue?: ParentIssueVO; // 工作项的父工作项信息
+  priority?: PriorityVO; // 工作项的优先级
+  severity?: SeverityVO; // 工作项的重要程度
+  status?: StatusVO; // 工作项的当前状态
+  release_dev?: string; // 工作项发布版本号
+  find_release_dev?: string; // 缺陷发现版本号
+  env?: EnvVO; // 缺陷发现环境
+  tracker?: TrackerVO; // 工作项类型
+  updated_on?: string; // 工作项的最后更新时间，时间戳格式
+  closed_time?: string; // 工作项的关闭时间，时间戳格式
+  description?: string; // 工作项描述
+  accessories_list?: IssueAccessoryV2[]; // 工作项的附件列表
+  inner_text?: string; // 工作项更新的评论内容
+}
+
+export interface AddIssueNotesResult {
+  issue?: IssueDetailResponseV2;
+}
+
+export interface AddIssueNotesResponse {
+  result?: AddIssueNotesResult; // 返回信息
+  status?: string; // 返回状态
+}
+/**
+ * 用户工作项统计信息
+ */
+
+export interface UserWorkStats {
+  userName: string;
+  count: number;
+  expectedHours: number;
+  actualHours: number;
+  completionRate: number;
+} /**
+ * 工作项进度统计结果
+ */
+
+export interface WorkProgressStats {
+  totalCount: number;
+  totalExpectedHours: number;
+  totalActualHours: number;
+  overallCompletionRate: number;
+  userStats: UserWorkStats[];
+} /**
+ * 用户工时统计信息
+ */
+
+export interface UserWorkHourStats {
+  userName: string;
+  userId: string;
+  totalHours: number;
+  workHours: WorkHour[];
+}
+/**
+ * 工时统计结果
+ */
+
+export interface WorkHourStats {
+  date: string;
+  totalHours: number;
+  totalEntries: number;
+  userStats: UserWorkHourStats[];
+}
+/**
+ * 领域工时统计信息
+ */
+
+export interface TypeWorkHourStats {
+  type: string;
+  totalHours: number;
+  workHours: WorkHour[];
+}
+/**
+ * 用户全量工时统计信息（按领域分组）
+ */
+
+export interface UserAllWorkHourStats {
+  userName: string;
+  userId: string;
+  totalHours: number;
+  domainStats: TypeWorkHourStats[];
+}
+/**
+ * 全量工时统计结果
+ */
+
+export interface AllWorkHourStats {
+  beginDate: string;
+  endDate: string;
+  totalHours: number;
+  totalEntries: number;
+  userStats: UserAllWorkHourStats[];
+}

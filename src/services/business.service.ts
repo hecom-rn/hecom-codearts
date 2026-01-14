@@ -1,47 +1,18 @@
-import { HuaweiCloudConfig, IssueItem, IterationInfo, ProjectMember, WorkHour } from '../types';
+import {
+  AllWorkHourStats,
+  HuaweiCloudConfig,
+  IssueItem,
+  IterationInfo,
+  ProjectMember,
+  TypeWorkHourStats,
+  UserAllWorkHourStats,
+  UserWorkHourStats,
+  UserWorkStats,
+  WorkHour,
+  WorkHourStats,
+  WorkProgressStats,
+} from '../types';
 import { ApiService } from './api.service';
-
-/**
- * 用户工作项统计信息
- */
-export interface UserWorkStats {
-  userName: string;
-  count: number;
-  expectedHours: number;
-  actualHours: number;
-  completionRate: number;
-}
-
-/**
- * 工作项进度统计结果
- */
-export interface WorkProgressStats {
-  totalCount: number;
-  totalExpectedHours: number;
-  totalActualHours: number;
-  overallCompletionRate: number;
-  userStats: UserWorkStats[];
-}
-
-/**
- * 用户工时统计信息
- */
-export interface UserWorkHourStats {
-  userName: string;
-  userId: string;
-  totalHours: number;
-  workHours: WorkHour[];
-}
-
-/**
- * 工时统计结果
- */
-export interface WorkHourStats {
-  date: string;
-  totalHours: number;
-  totalEntries: number;
-  userStats: UserWorkHourStats[];
-}
 
 /**
  * 业务服务类
@@ -63,7 +34,6 @@ export class BusinessService {
   }
 
   // 业务操作方法将在后续添加
-  // TODO: 根据具体业务需求添加相应的方法
 
   /**
    * 通过角色ID获取项目成员
@@ -174,6 +144,19 @@ export class BusinessService {
     return issuesResponse.data?.issues || [];
   }
 
+  async addIssueNote(projectId: string, issueId: number, content: string): Promise<void> {
+    try {
+      const result = await this.apiService.addIssueNotes({
+        projectUUId: projectId,
+        id: String(issueId),
+        notes: content,
+      });
+      console.log('添加工作项备注成功:', result);
+    } catch (error) {
+      console.error('添加工作项备注失败:', error);
+      throw error;
+    }
+  }
   /**
    * 统计工作项进度信息
    * @param issues 工作项列表
@@ -296,6 +279,153 @@ export class BusinessService {
       date,
       totalHours: Math.round(totalHours * 100) / 100, // 保留两位小数
       totalEntries: workHours.length,
+      userStats,
+    };
+  }
+
+  /**
+   * 查询指定用户在指定时间段内的所有工时统计（按人和领域分组）
+   * @param projectId 项目ID
+   * @param userIds 用户ID列表
+   * @param beginDate 开始日期，格式：YYYY-MM-DD
+   * @param endDate 结束日期，格式：YYYY-MM-DD
+   * @returns 工时统计结果，按用户和领域两个维度分组
+   */
+  async getAllWorkHourStats(
+    projectId: string,
+    userIds: string[],
+    beginDate: string,
+    endDate: string
+  ): Promise<AllWorkHourStats> {
+    // Step 1: 分页获取所有工时记录
+    const allWorkHours: WorkHour[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const workHoursResponse = await this.apiService.showProjectWorkHours(projectId, {
+        user_ids: userIds,
+        begin_time: beginDate,
+        end_time: endDate,
+        limit: pageSize,
+        offset: offset,
+      });
+
+      if (!workHoursResponse.success) {
+        throw new Error(`获取工时数据失败: ${workHoursResponse.error || '未知错误'}`);
+      }
+
+      const workHours = workHoursResponse.data?.work_hours || [];
+      allWorkHours.push(...workHours);
+
+      // 判断是否还有更多数据
+      const total = workHoursResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    // Step 2: 提取不重复的 issue IDs
+    const uniqueIssueIds = [...new Set(allWorkHours.map((wh) => wh.issue_id))];
+
+    // Step 3: 获取所有 issue 详情（分批处理，每批最多 50 条）
+    const issueDetailsMap = new Map<number, IssueItem>();
+    if (uniqueIssueIds.length > 0) {
+      const batchSize = 50;
+      for (let i = 0; i < uniqueIssueIds.length; i += batchSize) {
+        const batchIds = uniqueIssueIds.slice(i, i + batchSize);
+        const issuesResponse = await this.apiService.getIssues(projectId, {
+          issue_ids: batchIds,
+          limit: 100,
+          offset: 0,
+        });
+
+        if (issuesResponse.success && issuesResponse.data?.issues) {
+          issuesResponse.data.issues.forEach((issue) => {
+            issueDetailsMap.set(issue.id, issue);
+          });
+        }
+      }
+    }
+
+    // Step 4: 为每个工时记录关联领域信息
+    const enrichedWorkHours: (WorkHour & { type: string })[] = allWorkHours.map((workHour) => {
+      const issue = issueDetailsMap.get(workHour.issue_id);
+      const isBug = issue?.tracker?.id === 3; // 3=Bug
+      const type = isBug ? issue?.tracker?.name || '' : issue?.domain?.name || '未分配领域';
+
+      return {
+        ...workHour,
+        type,
+      };
+    });
+
+    // Step 5: 按用户分组
+    const userStatsMap = enrichedWorkHours.reduce(
+      (stats, workHour) => {
+        const userId = workHour.user_id;
+        const userName = workHour.nick_name || workHour.user_name;
+
+        if (!stats[userId]) {
+          stats[userId] = {
+            userName,
+            userId,
+            totalHours: 0,
+            domainStats: [],
+            domainStatsMap: new Map<string, TypeWorkHourStats>(),
+          };
+        }
+
+        const userStat = stats[userId];
+        const hours = parseFloat(workHour.work_hours_num) || 0;
+        userStat.totalHours += hours;
+
+        // 按领域分组
+        const type = workHour.type;
+
+        if (!userStat.domainStatsMap.has(type)) {
+          const domainStat: TypeWorkHourStats = {
+            type,
+            totalHours: 0,
+            workHours: [],
+          };
+          userStat.domainStatsMap.set(type, domainStat);
+          userStat.domainStats.push(domainStat);
+        }
+
+        const domainStat = userStat.domainStatsMap.get(type)!;
+        domainStat.totalHours += hours;
+        domainStat.workHours.push(workHour);
+
+        return stats;
+      },
+      {} as Record<
+        string,
+        UserAllWorkHourStats & { domainStatsMap: Map<string, TypeWorkHourStats> }
+      >
+    );
+
+    // Step 6: 转换为最终结果格式
+    const userStats: UserAllWorkHourStats[] = Object.values(userStatsMap).map((stat) => {
+      // 移除临时的 domainStatsMap
+      const { domainStatsMap, ...userStat } = stat;
+      // 对每个领域的总工时保留两位小数
+      userStat.domainStats.forEach((domainStat) => {
+        domainStat.totalHours = Math.round(domainStat.totalHours * 100) / 100;
+      });
+      // 对用户总工时保留两位小数
+      userStat.totalHours = Math.round(userStat.totalHours * 100) / 100;
+      return userStat;
+    });
+
+    // 计算总工时
+    const totalHours = userStats.reduce((total, user) => total + user.totalHours, 0);
+
+    return {
+      beginDate,
+      endDate,
+      totalHours: Math.round(totalHours * 100) / 100,
+      totalEntries: allWorkHours.length,
       userStats,
     };
   }
