@@ -451,11 +451,11 @@ export interface IssueDetailResponseV2 {
     inner_text?: string;
 }
 export interface AddIssueNotesResult {
-    issue?: IssueDetailResponseV2;
+    issue: IssueDetailResponseV2;
 }
 export interface AddIssueNotesResponse {
-    result?: AddIssueNotesResult;
-    status?: string;
+    result: AddIssueNotesResult;
+    status: string;
 }
 /**
  * 用户工作项统计信息

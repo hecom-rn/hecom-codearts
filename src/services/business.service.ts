@@ -1,6 +1,7 @@
 import {
   AllWorkHourStats,
   HuaweiCloudConfig,
+  IssueDetailResponseV2,
   IssueItem,
   IterationInfo,
   ProjectMember,
@@ -144,18 +145,20 @@ export class BusinessService {
     return issuesResponse.data?.issues || [];
   }
 
-  async addIssueNote(projectId: string, issueId: number, content: string): Promise<void> {
-    try {
-      const result = await this.apiService.addIssueNotes({
-        projectUUId: projectId,
-        id: String(issueId),
-        notes: content,
-      });
-      console.log('添加工作项备注成功:', result);
-    } catch (error) {
-      console.error('添加工作项备注失败:', error);
-      throw error;
+  async addIssueNote(
+    projectId: string,
+    issueId: number,
+    content: string
+  ): Promise<IssueDetailResponseV2> {
+    const result = await this.apiService.addIssueNotes({
+      projectUUId: projectId,
+      id: String(issueId),
+      notes: content,
+    });
+    if (result.data?.status === 'success') {
+      return result.data.result.issue;
     }
+    throw new Error(`添加工作项备注失败: ${result.data?.status || '未知错误'}`);
   }
   /**
    * 统计工作项进度信息

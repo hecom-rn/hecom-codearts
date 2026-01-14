@@ -104,18 +104,15 @@ class BusinessService {
         return issuesResponse.data?.issues || [];
     }
     async addIssueNote(projectId, issueId, content) {
-        try {
-            const result = await this.apiService.addIssueNotes({
-                projectUUId: projectId,
-                id: String(issueId),
-                notes: content,
-            });
-            console.log('添加工作项备注成功:', result);
+        const result = await this.apiService.addIssueNotes({
+            projectUUId: projectId,
+            id: String(issueId),
+            notes: content,
+        });
+        if (result.data?.status === 'success') {
+            return result.data.result.issue;
         }
-        catch (error) {
-            console.error('添加工作项备注失败:', error);
-            throw error;
-        }
+        throw new Error(`添加工作项备注失败: ${result.data?.status || '未知错误'}`);
     }
     /**
      * 统计工作项进度信息

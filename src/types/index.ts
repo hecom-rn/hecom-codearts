@@ -520,12 +520,12 @@ export interface IssueDetailResponseV2 {
 }
 
 export interface AddIssueNotesResult {
-  issue?: IssueDetailResponseV2;
+  issue: IssueDetailResponseV2;
 }
 
 export interface AddIssueNotesResponse {
-  result?: AddIssueNotesResult; // 返回信息
-  status?: string; // 返回状态
+  result: AddIssueNotesResult; // 返回信息
+  status: string; // 返回状态
 }
 /**
  * 用户工作项统计信息

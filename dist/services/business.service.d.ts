@@ -1,4 +1,4 @@
-import { AllWorkHourStats, HuaweiCloudConfig, IssueItem, IterationInfo, ProjectMember, WorkHourStats, WorkProgressStats } from '../types';
+import { AllWorkHourStats, HuaweiCloudConfig, IssueDetailResponseV2, IssueItem, IterationInfo, ProjectMember, WorkHourStats, WorkProgressStats } from '../types';
 import { ApiService } from './api.service';
 /**
  * 业务服务类
@@ -42,7 +42,7 @@ export declare class BusinessService {
      * @returns Task和Story类型的工作项列表
      */
     getWorkloadByIterationAndUsers(projectId: string, iterationId: number, userIds: string[]): Promise<IssueItem[]>;
-    addIssueNote(projectId: string, issueId: number, content: string): Promise<void>;
+    addIssueNote(projectId: string, issueId: number, content: string): Promise<IssueDetailResponseV2>;
     /**
      * 统计工作项进度信息
      * @param issues 工作项列表
