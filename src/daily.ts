@@ -1,9 +1,13 @@
 import dotenv from 'dotenv';
 import { BusinessService } from './services/business.service';
-import { HuaweiCloudConfig } from './types';
+import { HuaweiCloudConfig, WorkHour } from './types';
 
 dotenv.config();
-
+function isBug(workHour: WorkHour): boolean {
+  return (
+    workHour.issue_type === '缺陷' || workHour.issue_type === '3' || workHour.issue_type === 'Bug'
+  );
+}
 async function main() {
   try {
     // 从命令行参数获取日期，格式：npm run daily 2026-01-12
@@ -70,11 +74,7 @@ async function main() {
 
     dailyStats.userStats.forEach((userStat) => {
       userStat.workHours.forEach((workHour) => {
-        if (
-          workHour.issue_type === '缺陷' ||
-          workHour.issue_type === '3' ||
-          workHour.issue_type === 'Bug'
-        ) {
+        if (isBug(workHour)) {
           const key = workHour.subject;
           const hours = parseFloat(workHour.work_hours_num) || 0;
 
@@ -180,6 +180,29 @@ async function main() {
           console.log(` - ${issue.name} ${displayDoneRate}% ${issue.assigned_user.nick_name}`);
         });
       });
+    }
+
+    const otherWorkHours: { subject: string; summary: string; nick_name: string }[] = [];
+    dailyStats.userStats.forEach((userStat) => {
+      userStat.workHours.forEach((workHour) => {
+        if (workHour.summary && workHour.summary.trim() !== '' && !isBug(workHour)) {
+          const subject =
+            workHour.subject == '【移动端】会议、调研、环境处理等零散工作' ? '' : workHour.subject;
+          otherWorkHours.push({
+            subject,
+            summary: workHour.summary,
+            nick_name: workHour.nick_name,
+          });
+        }
+      });
+    });
+
+    if (otherWorkHours.length > 0) {
+      console.log(`${index}.其他: ${otherWorkHours.length}项`);
+      otherWorkHours.forEach((work) => {
+        console.log(` - ${work.subject} ${work.summary} ${work.nick_name}`);
+      });
+      index++;
     }
 
     console.log(`${index}.工时: ${dailyStats.totalHours}`);
