@@ -229,7 +229,7 @@ export class ApiService {
         },
         scope: {
           project: {
-            name: 'cn-north-4',
+            name: this.config.region,
           },
         },
       },

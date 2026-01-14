@@ -27,6 +27,7 @@ async function main() {
     const config: HuaweiCloudConfig = {
       iamEndpoint:
         process.env.HUAWEI_CLOUD_IAM_ENDPOINT || 'https://iam.cn-north-1.myhuaweicloud.com',
+      region: process.env.HUAWEI_CLOUD_REGION || 'cn-north-1',
       endpoint:
         process.env.CODEARTS_BASE_URL || 'https://projectman-ext.cn-north-1.myhuaweicloud.cn',
       username: process.env.HUAWEI_CLOUD_USERNAME || '',

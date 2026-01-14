@@ -8,6 +8,7 @@ export interface ApiConfig {
 // 华为云IAM认证配置
 export interface HuaweiCloudConfig {
   iamEndpoint: string;
+  region: string;
   endpoint: string;
   username: string;
   password: string;
