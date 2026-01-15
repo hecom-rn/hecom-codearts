@@ -103,13 +103,17 @@ async function main() {
     console.log('='.repeat(50));
 
     dailyStats.userStats.forEach((userStat) => {
-      console.log(`\n${userStat.userName} 工时: ${userStat.totalHours}小时`);
+      console.log(`\n\x1b[31m${userStat.userName} 工时: ${userStat.totalHours}小时\x1b[0m`);
       userStat.workHours.forEach((workHour) => {
         console.log(
           ` - ${workHour.subject} (${workHour.issue_type}) ${workHour.work_hours_num}小时`
         );
       });
     });
+
+    console.log('\n' + '='.repeat(50));
+    console.log('总结报告:');
+    console.log('='.repeat(50));
 
     let index = 1;
     if (bugWorkHours.length > 0) {
