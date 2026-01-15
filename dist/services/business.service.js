@@ -60,11 +60,11 @@ class BusinessService {
         });
     }
     /**
-     * 根据多个迭代ID和用户ID列表查询工作量列表（仅Task和Story）
+     * 根据多个迭代ID和用户ID列表查询工作量列表（仅Task）
      * @param projectId 项目ID
      * @param iterationIds 迭代ID列表
      * @param userIds 用户ID列表
-     * @returns Task和Story类型的工作项列表
+     * @returns Task类型的工作项列表
      */
     async getWorkloadByIterationsAndUsers(projectId, iterationIds, userIds) {
         if (iterationIds.length === 0) {
@@ -72,7 +72,7 @@ class BusinessService {
         }
         const issuesResponse = await this.apiService.getIssues(projectId, {
             iteration_ids: iterationIds,
-            tracker_ids: [2, 7], // 2=Task(任务), 7=Story
+            tracker_ids: [2], // 2=Task(任务), 7=Story
             assigned_ids: userIds,
             limit: 100,
             offset: 0,
@@ -137,10 +137,12 @@ class BusinessService {
                 };
             }
             stats[userId].count++;
-            stats[userId].expectedHours += issue.expected_work_hours || 0;
+            // 如果状态是已关闭（id=5），expectedHours 取实际工时，否则取预估工时
+            const expectedHours = issue.status?.id === 5 ? issue.actual_work_hours || 0 : issue.expected_work_hours || 0;
+            stats[userId].expectedHours += expectedHours;
             stats[userId].actualHours += issue.actual_work_hours || 0;
             // 累计总工时
-            totalExpectedHours += issue.expected_work_hours || 0;
+            totalExpectedHours += expectedHours;
             totalActualHours += issue.actual_work_hours || 0;
             return stats;
         }, {});

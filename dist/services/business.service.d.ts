@@ -27,11 +27,11 @@ export declare class BusinessService {
      */
     getActiveIterationsOnDate(projectId: string, targetDate: string): Promise<IterationInfo[]>;
     /**
-     * 根据多个迭代ID和用户ID列表查询工作量列表（仅Task和Story）
+     * 根据多个迭代ID和用户ID列表查询工作量列表（仅Task）
      * @param projectId 项目ID
      * @param iterationIds 迭代ID列表
      * @param userIds 用户ID列表
-     * @returns Task和Story类型的工作项列表
+     * @returns Task类型的工作项列表
      */
     getWorkloadByIterationsAndUsers(projectId: string, iterationIds: number[], userIds: string[]): Promise<IssueItem[]>;
     /**
