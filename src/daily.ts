@@ -114,9 +114,11 @@ async function main() {
     let index = 1;
     if (bugWorkHours.length > 0) {
       console.log(`\n${index}.Bug跟进: ${bugWorkHours.length}项`);
-      bugWorkHours.forEach((bug) => {
-        console.log(` - ${bug.title} ${bug.nick_name}`);
-      });
+      if (bugWorkHours.length < 6) {
+        bugWorkHours.forEach((bug) => {
+          console.log(` - ${bug.title} ${bug.nick_name}`);
+        });
+      }
       index++;
     }
 
