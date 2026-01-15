@@ -1,4 +1,4 @@
-# Daily CodeArts
+# Hecom CodeArts
 
 从CodeArts获取日报信息的Node.js TypeScript项目。
 
@@ -17,7 +17,7 @@
 ## 项目结构
 
 ```
-daily-codearts/
+hecom-codearts/
 ├── src/
 │   ├── services/           # API服务类
 │   │   └── api.service.ts

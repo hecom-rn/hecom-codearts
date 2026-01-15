@@ -1,5 +1,5 @@
 {
-  "name": "daily-codearts",
+  "name": "hecom-codearts",
   "version": "0.0.1",
   "description": "从CodeArts获取日报信息",
   "main": "dist/index.js",
