@@ -1,4 +1,4 @@
-# Daily CodeArts
+# Hecom CodeArts
 
 基于华为云 CodeArts API 的工时统计分析工具。
 
@@ -17,7 +17,7 @@
 ## 项目结构
 
 ```
-daily-codearts/
+hecom-codearts/
 ├── src/
 │   ├── services/               # API服务类
 │   │   ├── api.service.ts      # 华为云基础 API 封装
