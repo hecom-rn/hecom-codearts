@@ -111,7 +111,7 @@ async function main() {
       });
     });
 
-    console.log('\n' + '='.repeat(50));
+    console.log('\n\n');
     console.log('总结报告:');
     console.log('='.repeat(50));
 
@@ -188,12 +188,26 @@ async function main() {
       });
     }
 
+    const displayedIssueIds = new Set<number>();
+    activeIssues.forEach((issue) => {
+      displayedIssueIds.add(issue.id);
+    });
+
+    const subjectMap: Record<string, string> = {
+      '【移动端】会议、调研、环境处理等零散工作': '',
+      '【移动端】【鸿蒙】调研、问题修复、打包等零散工作': '【鸿蒙】',
+      // 可在此添加更多映射
+    };
     const otherWorkHours: { subject: string; summary: string; nick_name: string }[] = [];
     dailyStats.userStats.forEach((userStat) => {
       userStat.workHours.forEach((workHour) => {
-        if (workHour.summary && workHour.summary.trim() !== '' && !isBug(workHour)) {
-          const subject =
-            workHour.subject == '【移动端】会议、调研、环境处理等零散工作' ? '' : workHour.subject;
+        if (
+          workHour.summary &&
+          workHour.summary.trim() !== '' &&
+          !isBug(workHour) &&
+          !displayedIssueIds.has(workHour.issue_id)
+        ) {
+          const subject = subjectMap[workHour.subject] ?? workHour.subject;
           otherWorkHours.push({
             subject,
             summary: workHour.summary,
@@ -206,7 +220,8 @@ async function main() {
     if (otherWorkHours.length > 0) {
       console.log(`${index}.其他: ${otherWorkHours.length}项`);
       otherWorkHours.forEach((work) => {
-        console.log(` - ${work.subject} ${work.summary} ${work.nick_name}`);
+        const subjectPart = work.subject ? `${work.subject} ` : '';
+        console.log(` - ${subjectPart}${work.summary} ${work.nick_name}`);
       });
       index++;
     }
