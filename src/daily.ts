@@ -110,7 +110,7 @@ async function main() {
             ? ` \x1b[36m${workHour.summary}\x1b[0m`
             : '';
         console.log(
-          ` - ${workHour.subject}${summaryPart} (${workHour.issue_type}) ${workHour.work_hours_num}小时`
+          ` - ${workHour.subject}${summaryPart} (${workHour.issue_type}) (${workHour.work_hours_type_name}) ${workHour.work_hours_num}小时`
         );
       });
     });
