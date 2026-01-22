@@ -105,8 +105,12 @@ async function main() {
     dailyStats.userStats.forEach((userStat) => {
       console.log(`\n\x1b[31m${userStat.userName} 工时: ${userStat.totalHours}小时\x1b[0m`);
       userStat.workHours.forEach((workHour) => {
+        const summaryPart =
+          workHour.summary && workHour.summary.trim() !== ''
+            ? ` \x1b[36m${workHour.summary}\x1b[0m`
+            : '';
         console.log(
-          ` - ${workHour.subject} (${workHour.issue_type}) ${workHour.work_hours_num}小时`
+          ` - ${workHour.subject}${summaryPart} (${workHour.issue_type}) ${workHour.work_hours_num}小时`
         );
       });
     });
