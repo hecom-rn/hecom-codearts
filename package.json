@@ -1,6 +1,6 @@
 {
   "name": "hecom-codearts",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "从CodeArts获取日报信息",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "bin",
-    ".env.example"
+    ".env.example",
+    "README.md"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc && chmod +x bin/hecom-codearts",
@@ -22,13 +23,29 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "nodejs",
+    "huawei-cloud",
+    "codearts",
+    "work-hour",
+    "daily-report",
+    "cli",
     "typescript",
     "api",
-    "data-processing"
+    "statistics"
   ],
   "author": "summer88123",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/summer88123/hecom-codearts.git"
+  },
+  "homepage": "https://github.com/summer88123/hecom-codearts#readme",
+  "bugs": {
+    "url": "https://github.com/summer88123/hecom-codearts/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
+  },
   "dependencies": {
     "axios": "^1.5.0",
     "commander": "^12.1.0",

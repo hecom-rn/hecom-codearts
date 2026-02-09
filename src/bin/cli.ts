@@ -3,10 +3,17 @@ import { Command } from 'commander';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { initCommand } from '../commands/init.command';
+import * as path from 'path';
+import * as fs from 'fs';
+
+// 读取 package.json 中的版本号
+const packageJsonPath = path.join(__dirname, '../../package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+const version = packageJson.version || '0.0.1';
 
 const program = new Command();
 
-program.name('hecom-codearts').description('华为云 CodeArts API 工时统计分析工具').version('0.1.0');
+program.name('hecom-codearts').description('华为云 CodeArts API 工时统计分析工具').version(version);
 
 // 全局选项（环境变量覆盖）
 program
