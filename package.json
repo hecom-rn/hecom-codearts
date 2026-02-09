@@ -15,10 +15,7 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsc && chmod +x bin/codearts",
-    "daily": "ts-node src/daily.ts",
-    "work-hour": "ts-node src/workHour.ts",
     "test": "jest --passWithNoTests",
-    "test:watch": "jest --watch --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
     "prepublishOnly": "npm run build"
   },

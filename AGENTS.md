@@ -45,12 +45,6 @@ codearts work-hour 2025       # 运行年度工时统计（指定年份）
 codearts daily --project-id abc123 --role-id 1,2
 codearts work-hour 2025 --role-id 1,2,3
 
-# npm scripts 方式（向后兼容）
-npm run daily                       # 运行日报统计（默认当天）
-npm run daily 2026-01-15            # 运行日报统计（指定日期）
-npm run work-hour                   # 运行年度工时统计
-npm run work-hour 2025              # 运行年度工时统计（指定年份）
-
 # 本地开发
 npm link                            # 本地链接 CLI 工具
 codearts --help                     # 查看帮助
@@ -116,8 +110,6 @@ src/
 │   └── holidays.ts         # 节假日配置与工作日计算
 ├── types/
 │   └── index.ts            # TypeScript 类型定义（API 契约）
-├── daily.ts                # 日报统计主程序（向后兼容）
-├── workHour.ts             # 年度工时统计主程序（向后兼容）
 └── index.ts                # 模块导出入口
 
 bin/
@@ -156,26 +148,6 @@ bin/
 
 不变，继续提供 API 封装
 
-#### 向后兼容层（src/daily.ts, src/workHour.ts）
-
-简化为调用命令层函数：
-
-```typescript
-import dotenv from 'dotenv';
-import { dailyCommand } from './commands/daily.command';
-
-dotenv.config();
-
-async function main() {
-  const dateArg = process.argv[2];
-  await dailyCommand(dateArg);
-}
-
-if (require.main === module) {
-  main();
-}
-```
-
 ### 关键文件说明
 
 - **`src/bin/cli.ts`**: CLI 入口，使用 Commander.js 定义命令和选项
@@ -187,8 +159,6 @@ if (require.main === module) {
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
 - **`src/config/holidays.ts`**: 节假日配置与判断逻辑，用于计算年度应计工作日
 - **`src/types/index.ts`**: 华为云 CodeArts API 的 TypeScript 类型定义
-- **`src/daily.ts`**: 日报统计入口（向后兼容 npm run daily）
-- **`src/workHour.ts`**: 年度工时统计入口（向后兼容 npm run work-hour）
 - **`bin/codearts`**: CLI 可执行文件包装器
 
 ---
@@ -547,7 +517,6 @@ Focus solely on production code implementation without examples, documentation, 
 `tsconfig.json` 编译配置：
 
 - 编译所有 `src/` 下的 TypeScript 文件到 `dist/`
-- `src/daily.ts` 和 `src/workHour.ts` 会被编译（用于向后兼容 npm scripts）
 - CLI 入口文件在 `src/bin/cli.ts`，编译后为 `dist/bin/cli.js`
 - `bin/hecom-codearts` 可执行文件通过 `require('../dist/bin/cli.js')` 加载
 
