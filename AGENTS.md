@@ -35,7 +35,7 @@ npm install
 npm run build
 
 # CLI 命令方式（推荐）
-codearts init                 # 交互式配置向导
+codearts config                 # 交互式配置向导
 codearts daily                # 运行日报统计（默认当天）
 codearts daily 2026-01-15     # 运行日报统计（指定日期）
 codearts work-hour            # 运行年度工时统计（当前年份）
@@ -408,10 +408,10 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ### 全局配置
 
-使用 `codearts init` 创建全局配置：
+使用 `codearts config` 创建全局配置：
 
 ```bash
-codearts init
+codearts config
 ```
 
 全局配置文件位置：`~/.hecom-codearts/config.env`
@@ -419,12 +419,12 @@ codearts init
 配置示例：
 
 ```env
-HUAWEI_CLOUD_IAM_ENDPOINT=https://iam.cn-north-1.myhuaweicloud.com
-HUAWEI_CLOUD_REGION=cn-north-1
+HUAWEI_CLOUD_IAM_ENDPOINT=https://iam.cn-north-4.myhuaweicloud.com
+HUAWEI_CLOUD_REGION=cn-north-4
 HUAWEI_CLOUD_USERNAME=your-iam-username
 HUAWEI_CLOUD_PASSWORD=your-iam-password
 HUAWEI_CLOUD_DOMAIN=your-domain-name
-CODEARTS_BASE_URL=https://projectman-ext.cn-north-1.myhuaweicloud.cn
+CODEARTS_BASE_URL=https://projectman-ext.cn-north-4.myhuaweicloud.cn
 PROJECT_ID=your-project-id
 ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 ```

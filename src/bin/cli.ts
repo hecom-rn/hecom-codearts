@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { dailyCommand } from '../commands/daily.command';
-import { workHourCommand } from '../commands/work-hour.command';
-import { initCommand } from '../commands/init.command';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
+import dotenv from 'dotenv';
+import { dailyCommand } from '../commands/daily.command';
+import { configCommand } from '../commands/config.command';
+import { workHourCommand } from '../commands/work-hour.command';
+import { globalConfigExists } from '../utils/global-config';
 
 // 读取 package.json 中的版本号
 const packageJsonPath = path.join(__dirname, '../../package.json');
@@ -26,12 +28,12 @@ program
   .option('--iam-endpoint <url>', 'IAM 认证端点')
   .option('--codearts-url <url>', 'CodeArts API 地址');
 
-// init 命令 - 交互式配置向导
+// config 命令 - 交互式配置向导
 program
-  .command('init')
-  .description('交互式配置向导\n\n引导用户创建或更新 .env 配置文件')
+  .command('config')
+  .description('交互式配置向导\n\n引导用户创建或更新全局配置文件')
   .action(async () => {
-    await initCommand();
+    await configCommand();
   });
 
 // daily 命令
@@ -76,13 +78,44 @@ program.addHelpText(
   命令行参数 > 环境变量 > 默认值
 
 快速开始:
-  1. 运行配置向导: codearts init
+  1. 运行配置向导: codearts config
   2. 生成日报: codearts daily
   3. 生成年度工时统计: codearts work-hour
 
 更多信息:
-  https://github.com/summer88123/hecom-codearts
+  https://github.com/hecom-rn/hecom-codearts
 `
 );
 
-program.parse();
+// 检查配置并自动执行 config 命令
+async function checkConfigAndRun() {
+  const args = process.argv.slice(2);
+
+  // 如果没有参数（直接执行 codearts），检测配置
+  if (args.length === 0) {
+    // 加载当前目录 .env 文件
+    dotenv.config();
+
+    // 检查是否有配置（全局配置或环境变量）
+    const hasGlobalConfig = globalConfigExists();
+    const hasEnvConfig = process.env.PROJECT_ID && process.env.ROLE_ID;
+
+    if (!hasGlobalConfig && !hasEnvConfig) {
+      // 没有配置，自动执行 config 命令
+      console.log('未检测到配置文件，启动配置向导...\n');
+      await configCommand();
+      return;
+    }
+
+    // 有配置，显示帮助信息
+    program.help();
+  }
+
+  // 有参数，正常解析命令
+  program.parse();
+}
+
+checkConfigAndRun().catch((error) => {
+  console.error('执行失败:', error);
+  process.exit(1);
+});

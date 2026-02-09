@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { HuaweiCloudConfig } from '../types';
-import { readGlobalConfig, globalConfigExists } from './global-config';
+import { globalConfigExists, readGlobalConfig } from './global-config';
 
 // 加载当前目录的 .env 文件（如果存在）
 dotenv.config();
@@ -37,13 +37,13 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
 
   if (!projectId) {
     throw new Error(
-      '缺少必需参数: --project-id 或环境变量 PROJECT_ID\n提示：运行 hecom-codearts init 创建配置'
+      '缺少必需参数: --project-id 或环境变量 PROJECT_ID\n提示：运行 codearts config 创建配置'
     );
   }
 
   if (!roleIdStr) {
     throw new Error(
-      '缺少必需参数: --role-id 或环境变量 ROLE_ID\n提示：运行 hecom-codearts init 创建配置'
+      '缺少必需参数: --role-id 或环境变量 ROLE_ID\n提示：运行 codearts config 创建配置'
     );
   }
 
@@ -62,7 +62,7 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
 
   if (!username || !password || !domain) {
     throw new Error(
-      '缺少华为云认证信息: --username, --password, --domain 或对应的环境变量\n提示：运行 hecom-codearts init 创建配置'
+      '缺少华为云认证信息: --username, --password, --domain 或对应的环境变量\n提示：运行 codearts config 创建配置'
     );
   }
 
@@ -71,17 +71,17 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
       cliOptions.iamEndpoint ||
       process.env.HUAWEI_CLOUD_IAM_ENDPOINT ||
       globalConfig.HUAWEI_CLOUD_IAM_ENDPOINT ||
-      'https://iam.cn-north-1.myhuaweicloud.com',
+      'https://iam.cn-north-4.myhuaweicloud.com',
     region:
       cliOptions.region ||
       process.env.HUAWEI_CLOUD_REGION ||
       globalConfig.HUAWEI_CLOUD_REGION ||
-      'cn-north-1',
+      'cn-north-4',
     endpoint:
       cliOptions.codeartsUrl ||
       process.env.CODEARTS_BASE_URL ||
       globalConfig.CODEARTS_BASE_URL ||
-      'https://projectman-ext.cn-north-1.myhuaweicloud.cn',
+      'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
     username,
     password,
     domainName: domain,

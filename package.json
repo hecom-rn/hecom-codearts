@@ -36,11 +36,11 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/summer88123/hecom-codearts.git"
+    "url": "https://github.com/hecom-rn/hecom-codearts.git"
   },
-  "homepage": "https://github.com/summer88123/hecom-codearts#readme",
+  "homepage": "https://github.com/hecom-rn/hecom-codearts#readme",
   "bugs": {
-    "url": "https://github.com/summer88123/hecom-codearts/issues"
+    "url": "https://github.com/hecom-rn/hecom-codearts/issues"
   },
   "engines": {
     "node": ">=16.0.0",

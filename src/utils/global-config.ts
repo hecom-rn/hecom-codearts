@@ -74,7 +74,7 @@ export function writeGlobalConfig(config: Record<string, string>): void {
   ensureConfigDir();
 
   const content = `# Hecom CodeArts 全局配置文件
-# 此文件由 hecom-codearts init 命令自动生成
+# 此文件由 codearts config 命令自动生成
 # 位置: ${CONFIG_FILE}
 
 # 华为云IAM认证端点（根据区域调整）
@@ -119,6 +119,6 @@ export function getConfigInfo(): string {
   if (globalConfigExists()) {
     return `全局配置文件: ${CONFIG_FILE}`;
   } else {
-    return `全局配置文件不存在\n建议运行: hecom-codearts init`;
+    return `全局配置文件不存在\n建议运行: codearts config`;
   }
 }
