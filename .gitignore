@@ -6,7 +6,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # 编译输出
-# dist/
+dist/
 build/
 *.tsbuildinfo
 

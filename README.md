@@ -19,16 +19,26 @@
 ```
 hecom-codearts/
 ├── src/
+│   ├── bin/                    # CLI 入口
+│   │   └── cli.ts              # Commander.js CLI 定义
+│   ├── commands/               # 命令实现
+│   │   ├── daily.command.ts    # 日报命令逻辑
+│   │   ├── work-hour.command.ts# 工时统计命令逻辑
+│   │   └── index.ts            # 命令导出
 │   ├── services/               # API服务类
 │   │   ├── api.service.ts      # 华为云基础 API 封装
 │   │   └── business.service.ts # 业务场景 API 封装
+│   ├── utils/                  # 工具函数
+│   │   └── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
 │   ├── config/                 # 配置文件
 │   │   └── holidays.ts         # 节假日配置与工作日计算
 │   ├── types/                  # TypeScript 类型定义
 │   │   └── index.ts            # API 契约与数据结构定义
-│   ├── daily.ts                # 日报统计主程序
-│   ├── workHour.ts             # 年度工时统计主程序
+│   ├── daily.ts                # 日报统计主程序（向后兼容）
+│   ├── workHour.ts             # 年度工时统计主程序（向后兼容）
 │   └── index.ts                # 模块导出
+├── bin/
+│   └── hecom-codearts          # CLI 可执行文件
 ├── __tests__/                  # 测试文件
 ├── dist/                       # 编译输出目录
 ├── .env                        # 环境变量配置
@@ -45,10 +55,32 @@ hecom-codearts/
 - Node.js >= 16.0.0
 - npm >= 7.0.0
 
-### 安装依赖
+### 安装方式
+
+#### 方式一：使用 npx（推荐）
+
+无需安装，直接运行：
+
+```bash
+npx hecom-codearts --help
+npx hecom-codearts daily
+npx hecom-codearts work-hour
+```
+
+#### 方式二：全局安装
+
+```bash
+npm install -g hecom-codearts
+hecom-codearts --help
+```
+
+#### 方式三：本地开发
 
 ```bash
 npm install
+npm run build
+npm link
+hecom-codearts --help
 ```
 
 ### 环境配置
@@ -70,9 +102,43 @@ HUAWEI_CLOUD_REGION=cn-north-1
 HUAWEI_CLOUD_USERNAME=your-iam-username
 HUAWEI_CLOUD_PASSWORD=your-iam-password
 HUAWEI_CLOUD_DOMAIN=your-domain-name
+
+# 项目配置
+CODEARTS_BASE_URL=https://projectman-ext.cn-north-1.myhuaweicloud.cn
+PROJECT_ID=your-project-id
+ROLE_ID=1,2,3  # 支持逗号分隔的多个角色ID
 ```
 
 ### 使用方式
+
+#### CLI 命令（推荐）
+
+```bash
+# 查看帮助
+hecom-codearts --help
+hecom-codearts daily --help
+hecom-codearts work-hour --help
+
+# 生成日报（默认统计当天）
+hecom-codearts daily
+
+# 生成指定日期的日报
+hecom-codearts daily 2026-01-15
+
+# 使用命令行参数覆盖环境变量
+hecom-codearts daily 2026-01-15 --project-id abc123 --role-id 1,2
+
+# 生成年度工时统计（默认统计当前年份）
+hecom-codearts work-hour
+
+# 生成指定年份的工时统计
+hecom-codearts work-hour 2025
+
+# 使用命令行参数覆盖环境变量
+hecom-codearts work-hour 2025 --role-id 1,2,3
+```
+
+#### npm scripts（向后兼容）
 
 ```bash
 # 生成日报（默认统计当天）
@@ -90,6 +156,23 @@ npm run work-hour 2025
 # 编译TypeScript
 npm run build
 ```
+
+### CLI 选项
+
+全局选项（适用于所有命令）：
+
+```
+--project-id <id>      项目 ID
+--role-id <ids>        角色 ID（支持逗号分隔，如: 1,2,3）
+--username <username>  IAM 用户名
+--password <password>  IAM 密码（建议使用 .env 文件）
+--domain <domain>      华为云账号名
+--region <region>      华为云区域
+--iam-endpoint <url>   IAM 认证端点
+--codearts-url <url>   CodeArts API 地址
+```
+
+配置优先级：**命令行参数 > 环境变量 > 默认值**
 
 ## 核心功能
 
@@ -111,7 +194,28 @@ npm run build
 - 统计实际工时与应计工时的完成率
 - 按人员生成工时明细表
 - 按领域类型（需求、缺陷、任务等）统计工时分布
+- 支持多角色统计（按角色分组，显示小计和总计）
 - 生成 Markdown 格式的统计表格
+
+### 多角色支持
+
+项目支持同时统计多个角色的数据：
+
+- **日报**: 为每个角色生成独立的日报
+- **工时统计**: 所有角色合并到一张表，按角色分组显示小计
+
+配置方式：
+
+```env
+ROLE_ID=1,2,3  # 使用逗号分隔多个角色ID
+```
+
+或通过命令行参数：
+
+```bash
+hecom-codearts daily --role-id 1,2,3
+hecom-codearts work-hour --role-id 1,2,3
+```
 
 ### API服务层
 
@@ -151,14 +255,14 @@ npm run build
 
 项目支持以下环境变量：
 
-| 变量名                      | 说明                    | 必填 | 默认值                                               |
-| --------------------------- | ----------------------- | ---- | ---------------------------------------------------- |
-| `HUAWEI_CLOUD_IAM_ENDPOINT` | IAM 认证端点            | 否   | `https://iam.cn-north-1.myhuaweicloud.com`           |
-| `HUAWEI_CLOUD_REGION`       | 华为云区域              | 否   | `cn-north-1`                                         |
-| `HUAWEI_CLOUD_USERNAME`     | IAM 用户名              | 是   | -                                                    |
-| `HUAWEI_CLOUD_PASSWORD`     | IAM 密码                | 是   | -                                                    |
-| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名            | 是   | -                                                    |
-| `CODEARTS_BASE_URL`         | CodeArts API 地址       | 否   | `https://projectman-ext.cn-north-1.myhuaweicloud.cn` |
-| `PROJECT_ID`                | 项目 ID                 | 是   | -                                                    |
-| `ROLE_ID`                   | 角色 ID（用于筛选人员） | 是   | -                                                    |
-| `TARGET_DATE`               | 目标日期（YYYY-MM-DD）  | 否   | 当天日期                                             |
+| 变量名                      | 说明                               | 必填 | 默认值                                               |
+| --------------------------- | ---------------------------------- | ---- | ---------------------------------------------------- |
+| `HUAWEI_CLOUD_IAM_ENDPOINT` | IAM 认证端点                       | 否   | `https://iam.cn-north-1.myhuaweicloud.com`           |
+| `HUAWEI_CLOUD_REGION`       | 华为云区域                         | 否   | `cn-north-1`                                         |
+| `HUAWEI_CLOUD_USERNAME`     | IAM 用户名                         | 是   | -                                                    |
+| `HUAWEI_CLOUD_PASSWORD`     | IAM 密码                           | 是   | -                                                    |
+| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名                       | 是   | -                                                    |
+| `CODEARTS_BASE_URL`         | CodeArts API 地址                  | 否   | `https://projectman-ext.cn-north-1.myhuaweicloud.cn` |
+| `PROJECT_ID`                | 项目 ID                            | 是   | -                                                    |
+| `ROLE_ID`                   | 角色 ID（支持逗号分隔，如: 1,2,3） | 是   | -                                                    |
+| `TARGET_DATE`               | 目标日期（YYYY-MM-DD）             | 否   | 当天日期                                             |

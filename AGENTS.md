@@ -34,17 +34,25 @@ npm install
 # 编译 TypeScript
 npm run build
 
-# 运行日报统计（默认当天）
-npm run daily
+# CLI 命令方式（推荐）
+hecom-codearts daily                # 运行日报统计（默认当天）
+hecom-codearts daily 2026-01-15     # 运行日报统计（指定日期）
+hecom-codearts work-hour            # 运行年度工时统计（当前年份）
+hecom-codearts work-hour 2025       # 运行年度工时统计（指定年份）
 
-# 运行日报统计（指定日期）
-npm run daily 2026-01-15
+# CLI 命令 - 使用参数覆盖环境变量
+hecom-codearts daily --project-id abc123 --role-id 1,2
+hecom-codearts work-hour 2025 --role-id 1,2,3
 
-# 运行年度工时统计
-npm run work-hour
+# npm scripts 方式（向后兼容）
+npm run daily                       # 运行日报统计（默认当天）
+npm run daily 2026-01-15            # 运行日报统计（指定日期）
+npm run work-hour                   # 运行年度工时统计
+npm run work-hour 2025              # 运行年度工时统计（指定年份）
 
-# 运行年度工时统计（指定年份）
-npm run work-hour 2025
+# 本地开发
+npm link                            # 本地链接 CLI 工具
+hecom-codearts --help               # 查看帮助
 ```
 
 ### 测试命令
@@ -91,26 +99,93 @@ npx prettier --write "src/**/*.ts"
 
 ```
 src/
+├── bin/                    # CLI 入口
+│   └── cli.ts              # Commander.js CLI 定义
+├── commands/               # 命令实现
+│   ├── daily.command.ts    # 日报命令逻辑
+│   ├── work-hour.command.ts# 工时统计命令逻辑
+│   └── index.ts            # 命令导出
 ├── services/               # API 服务层
 │   ├── api.service.ts      # 华为云基础 API 封装
 │   └── business.service.ts # 业务场景 API 封装
+├── utils/                  # 工具函数
+│   └── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
 ├── config/
 │   └── holidays.ts         # 节假日配置与工作日计算
 ├── types/
 │   └── index.ts            # TypeScript 类型定义（API 契约）
-├── daily.ts                # 日报统计主程序
-├── workHour.ts             # 年度工时统计主程序
+├── daily.ts                # 日报统计主程序（向后兼容）
+├── workHour.ts             # 年度工时统计主程序（向后兼容）
 └── index.ts                # 模块导出入口
+
+bin/
+└── hecom-codearts          # CLI 可执行文件
+```
+
+### 架构设计
+
+#### CLI 层（src/bin/cli.ts）
+
+使用 Commander.js 框架构建命令行工具：
+
+- 定义全局选项（--project-id, --role-id, --username 等）
+- 注册子命令（daily, work-hour）
+- 处理命令行参数解析
+- 提供 --help 帮助信息
+
+#### 命令层（src/commands/）
+
+每个命令一个独立模块：
+
+- `daily.command.ts`: 日报统计命令实现
+- `work-hour.command.ts`: 年度工时统计命令实现
+- 命令函数接收可选参数，支持通过环境变量和 CLI 参数配置
+
+#### 配置加载层（src/utils/config-loader.ts）
+
+负责配置合并逻辑：
+
+- 优先级：命令行参数 > 环境变量 > 默认值
+- 统一的配置加载接口
+- 类型安全的配置对象
+
+#### 服务层（src/services/）
+
+不变，继续提供 API 封装
+
+#### 向后兼容层（src/daily.ts, src/workHour.ts）
+
+简化为调用命令层函数：
+
+```typescript
+import dotenv from 'dotenv';
+import { dailyCommand } from './commands/daily.command';
+
+dotenv.config();
+
+async function main() {
+  const dateArg = process.argv[2];
+  await dailyCommand(dateArg);
+}
+
+if (require.main === module) {
+  main();
+}
 ```
 
 ### 关键文件说明
 
+- **`src/bin/cli.ts`**: CLI 入口，使用 Commander.js 定义命令和选项
+- **`src/commands/daily.command.ts`**: 日报统计核心逻辑（从 daily.ts 提取）
+- **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
+- **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和环境变量
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
 - **`src/config/holidays.ts`**: 节假日配置与判断逻辑，用于计算年度应计工作日
 - **`src/types/index.ts`**: 华为云 CodeArts API 的 TypeScript 类型定义
-- **`src/daily.ts`**: 日报统计核心逻辑
-- **`src/workHour.ts`**: 年度工时统计核心逻辑
+- **`src/daily.ts`**: 日报统计入口（向后兼容 npm run daily）
+- **`src/workHour.ts`**: 年度工时统计入口（向后兼容 npm run work-hour）
+- **`bin/hecom-codearts`**: CLI 可执行文件包装器
 
 ---
 
@@ -329,7 +404,7 @@ HUAWEI_CLOUD_PASSWORD=your-iam-password
 HUAWEI_CLOUD_DOMAIN=your-domain-name
 CODEARTS_BASE_URL=https://projectman-ext.cn-north-1.myhuaweicloud.cn
 PROJECT_ID=your-project-id
-ROLE_ID=your-role-id
+ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 ```
 
 ### 多角色支持
@@ -340,14 +415,25 @@ ROLE_ID=your-role-id
 ROLE_ID=1,2,3
 ```
 
-当配置多个角色ID时，daily 脚本会分别为每个角色生成独立的日报。
+当配置多个角色ID时：
 
-使用 `dotenv` 加载环境变量：
+- `daily` 命令会分别为每个角色生成独立的日报
+- `work-hour` 命令会合并所有角色到一张表，按角色分组显示小计
 
-```typescript
-import dotenv from 'dotenv';
-dotenv.config();
-```
+### CLI 参数优先级
+
+配置加载优先级：**命令行参数 > 环境变量 > 默认值**
+
+支持的 CLI 参数：
+
+- `--project-id <id>`: 项目 ID
+- `--role-id <ids>`: 角色 ID（支持逗号分隔）
+- `--username <username>`: IAM 用户名
+- `--password <password>`: IAM 密码
+- `--domain <domain>`: 华为云账号名
+- `--region <region>`: 华为云区域
+- `--iam-endpoint <url>`: IAM 认证端点
+- `--codearts-url <url>`: CodeArts API 地址
 
 使用 `dotenv` 加载环境变量：
 
@@ -411,16 +497,16 @@ feat: 添加按领域统计工时功能
 
 Focus solely on production code implementation without examples, documentation, or tests unless specifically requested.
 
-### TypeScript 编译排除
+### TypeScript 编译配置
 
-`tsconfig.json` 中排除了以下文件（它们不会被编译到 `dist/`）：
+`tsconfig.json` 编译配置：
 
-- `src/daily.ts`
-- `src/workHour.ts`
-
-这些是可执行脚本，通过 `ts-node` 直接运行。
+- 编译所有 `src/` 下的 TypeScript 文件到 `dist/`
+- `src/daily.ts` 和 `src/workHour.ts` 会被编译（用于向后兼容 npm scripts）
+- CLI 入口文件在 `src/bin/cli.ts`，编译后为 `dist/bin/cli.js`
+- `bin/hecom-codearts` 可执行文件通过 `require('../dist/bin/cli.js')` 加载
 
 ---
 
-**本文档版本**: 2026-02-04  
+**本文档版本**: 2026-02-09  
 **适用于**: AI 编码代理（GitHub Copilot, Cursor, OpenCode 等）
