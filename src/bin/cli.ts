@@ -2,10 +2,11 @@
 import { Command } from 'commander';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
+import { initCommand } from '../commands/init.command';
 
 const program = new Command();
 
-program.name('hecom-codearts').description('和创 CodeArts 工时统计分析工具').version('0.1.0');
+program.name('hecom-codearts').description('华为云 CodeArts API 工时统计分析工具').version('0.1.0');
 
 // 全局选项（环境变量覆盖）
 program
@@ -17,6 +18,14 @@ program
   .option('--region <region>', '华为云区域')
   .option('--iam-endpoint <url>', 'IAM 认证端点')
   .option('--codearts-url <url>', 'CodeArts API 地址');
+
+// init 命令 - 交互式配置向导
+program
+  .command('init')
+  .description('交互式配置向导\n\n引导用户创建或更新 .env 配置文件')
+  .action(async () => {
+    await initCommand();
+  });
 
 // daily 命令
 program
@@ -58,6 +67,11 @@ program.addHelpText(
 
 配置优先级:
   命令行参数 > 环境变量 > 默认值
+
+快速开始:
+  1. 运行配置向导: hecom-codearts init
+  2. 生成日报: hecom-codearts daily
+  3. 生成年度工时统计: hecom-codearts work-hour
 
 更多信息:
   https://github.com/summer88123/hecom-codearts

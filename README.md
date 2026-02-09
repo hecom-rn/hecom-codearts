@@ -85,6 +85,31 @@ hecom-codearts --help
 
 ### 环境配置
 
+#### 方式一：全局配置（推荐）
+
+使用交互式配置向导创建全局配置，配置一次后可在任何目录使用：
+
+```bash
+hecom-codearts init
+```
+
+配置向导会：
+
+- 引导您输入所有必要的配置项
+- 自动验证输入格式
+- 生成全局配置文件（保存在 `~/.hecom-codearts/config.env`）
+- 检测并提示是否覆盖已有配置
+
+**优势**：
+
+- 配置一次，全局可用
+- 支持 npx 直接运行，无需每个项目单独配置
+- 配置文件自动管理，无需担心误提交敏感信息
+
+#### 方式二：项目级配置
+
+在项目目录创建 `.env` 文件（优先级高于全局配置）：
+
 1. 复制环境变量示例文件：
 
 ```bash
@@ -109,15 +134,34 @@ PROJECT_ID=your-project-id
 ROLE_ID=1,2,3  # 支持逗号分隔的多个角色ID
 ```
 
+**配置优先级**：命令行参数 > 当前目录 .env > 全局配置 > 默认值
+
 ### 使用方式
 
-#### CLI 命令（推荐）
+#### 快速开始
+
+```bash
+# 1. 运行配置向导
+hecom-codearts init
+
+# 2. 生成日报
+hecom-codearts daily
+
+# 3. 生成年度工时统计
+hecom-codearts work-hour
+```
+
+#### CLI 命令详解
 
 ```bash
 # 查看帮助
 hecom-codearts --help
 hecom-codearts daily --help
 hecom-codearts work-hour --help
+hecom-codearts init --help
+
+# 配置向导
+hecom-codearts init
 
 # 生成日报（默认统计当天）
 hecom-codearts daily
@@ -172,7 +216,32 @@ npm run build
 --codearts-url <url>   CodeArts API 地址
 ```
 
-配置优先级：**命令行参数 > 环境变量 > 默认值**
+配置优先级：**命令行参数 > 当前目录 .env > 全局配置 > 默认值**
+
+### 配置文件说明
+
+#### 全局配置文件
+
+- **位置**: `~/.hecom-codearts/config.env`
+- **创建方式**: 运行 `hecom-codearts init`
+- **适用场景**: 个人开发，全局统一配置
+- **优势**: 配置一次，任何目录都可使用
+
+#### 项目级配置文件
+
+- **位置**: 项目根目录 `.env`
+- **创建方式**: 手动创建或从 `.env.example` 复制
+- **适用场景**: 团队协作，不同项目使用不同配置
+- **优势**: 配置与项目绑定，可提交到版本控制（记得加密敏感信息）
+
+#### 查看当前配置
+
+运行任意命令时，工具会按优先级自动加载配置。如果配置缺失，会提示：
+
+```bash
+缺少必需参数: --project-id 或环境变量 PROJECT_ID
+提示：运行 hecom-codearts init 创建配置
+```
 
 ## 核心功能
 
