@@ -35,15 +35,15 @@ npm install
 npm run build
 
 # CLI 命令方式（推荐）
-hecom-codearts init                 # 交互式配置向导
-hecom-codearts daily                # 运行日报统计（默认当天）
-hecom-codearts daily 2026-01-15     # 运行日报统计（指定日期）
-hecom-codearts work-hour            # 运行年度工时统计（当前年份）
-hecom-codearts work-hour 2025       # 运行年度工时统计（指定年份）
+codearts init                 # 交互式配置向导
+codearts daily                # 运行日报统计（默认当天）
+codearts daily 2026-01-15     # 运行日报统计（指定日期）
+codearts work-hour            # 运行年度工时统计（当前年份）
+codearts work-hour 2025       # 运行年度工时统计（指定年份）
 
 # CLI 命令 - 使用参数覆盖环境变量
-hecom-codearts daily --project-id abc123 --role-id 1,2
-hecom-codearts work-hour 2025 --role-id 1,2,3
+codearts daily --project-id abc123 --role-id 1,2
+codearts work-hour 2025 --role-id 1,2,3
 
 # npm scripts 方式（向后兼容）
 npm run daily                       # 运行日报统计（默认当天）
@@ -53,7 +53,7 @@ npm run work-hour 2025              # 运行年度工时统计（指定年份）
 
 # 本地开发
 npm link                            # 本地链接 CLI 工具
-hecom-codearts --help               # 查看帮助
+codearts --help                     # 查看帮助
 ```
 
 ### 测试命令
@@ -121,7 +121,7 @@ src/
 └── index.ts                # 模块导出入口
 
 bin/
-└── hecom-codearts          # CLI 可执行文件
+└── codearts                # CLI 可执行文件
 ```
 
 ### 架构设计
@@ -189,7 +189,7 @@ if (require.main === module) {
 - **`src/types/index.ts`**: 华为云 CodeArts API 的 TypeScript 类型定义
 - **`src/daily.ts`**: 日报统计入口（向后兼容 npm run daily）
 - **`src/workHour.ts`**: 年度工时统计入口（向后兼容 npm run work-hour）
-- **`bin/hecom-codearts`**: CLI 可执行文件包装器
+- **`bin/codearts`**: CLI 可执行文件包装器
 
 ---
 
@@ -408,10 +408,10 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ### 全局配置
 
-使用 `hecom-codearts init` 创建全局配置：
+使用 `codearts init` 创建全局配置：
 
 ```bash
-hecom-codearts init
+codearts init
 ```
 
 全局配置文件位置：`~/.hecom-codearts/config.env`

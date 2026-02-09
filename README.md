@@ -1,4 +1,4 @@
-# Hecom CodeArts
+# @hecom/codearts
 
 基于华为云 CodeArts API 的工时统计分析工具。
 
@@ -17,7 +17,7 @@
 ## 项目结构
 
 ```
-hecom-codearts/
+@hecom/codearts/
 ├── src/
 │   ├── bin/                    # CLI 入口
 │   │   └── cli.ts              # Commander.js CLI 定义
@@ -38,7 +38,7 @@ hecom-codearts/
 │   ├── workHour.ts             # 年度工时统计主程序（向后兼容）
 │   └── index.ts                # 模块导出
 ├── bin/
-│   └── hecom-codearts          # CLI 可执行文件
+│   └── codearts                # CLI 可执行文件
 ├── __tests__/                  # 测试文件
 ├── dist/                       # 编译输出目录
 ├── .env                        # 环境变量配置
@@ -62,16 +62,16 @@ hecom-codearts/
 无需安装，直接运行：
 
 ```bash
-npx hecom-codearts --help
-npx hecom-codearts daily
-npx hecom-codearts work-hour
+npx @hecom/codearts --help
+npx @hecom/codearts daily
+npx @hecom/codearts work-hour
 ```
 
 #### 方式二：全局安装
 
 ```bash
-npm install -g hecom-codearts
-hecom-codearts --help
+npm install -g @hecom/codearts
+codearts --help
 ```
 
 #### 方式三：本地开发
@@ -80,7 +80,7 @@ hecom-codearts --help
 npm install
 npm run build
 npm link
-hecom-codearts --help
+codearts --help
 ```
 
 ### 环境配置
@@ -90,7 +90,7 @@ hecom-codearts --help
 使用交互式配置向导创建全局配置，配置一次后可在任何目录使用：
 
 ```bash
-hecom-codearts init
+codearts init
 ```
 
 配置向导会：
@@ -142,44 +142,44 @@ ROLE_ID=1,2,3  # 支持逗号分隔的多个角色ID
 
 ```bash
 # 1. 运行配置向导
-hecom-codearts init
+codearts init
 
 # 2. 生成日报
-hecom-codearts daily
+codearts daily
 
 # 3. 生成年度工时统计
-hecom-codearts work-hour
+codearts work-hour
 ```
 
 #### CLI 命令详解
 
 ```bash
 # 查看帮助
-hecom-codearts --help
-hecom-codearts daily --help
-hecom-codearts work-hour --help
-hecom-codearts init --help
+codearts --help
+codearts daily --help
+codearts work-hour --help
+codearts init --help
 
 # 配置向导
-hecom-codearts init
+codearts init
 
 # 生成日报（默认统计当天）
-hecom-codearts daily
+codearts daily
 
 # 生成指定日期的日报
-hecom-codearts daily 2026-01-15
+codearts daily 2026-01-15
 
 # 使用命令行参数覆盖环境变量
-hecom-codearts daily 2026-01-15 --project-id abc123 --role-id 1,2
+codearts daily 2026-01-15 --project-id abc123 --role-id 1,2
 
 # 生成年度工时统计（默认统计当前年份）
-hecom-codearts work-hour
+codearts work-hour
 
 # 生成指定年份的工时统计
-hecom-codearts work-hour 2025
+codearts work-hour 2025
 
 # 使用命令行参数覆盖环境变量
-hecom-codearts work-hour 2025 --role-id 1,2,3
+codearts work-hour 2025 --role-id 1,2,3
 ```
 
 #### npm scripts（向后兼容）
@@ -240,7 +240,7 @@ npm run build
 
 ```bash
 缺少必需参数: --project-id 或环境变量 PROJECT_ID
-提示：运行 hecom-codearts init 创建配置
+提示：运行 codearts init 创建配置
 ```
 
 ## 核心功能
@@ -282,8 +282,8 @@ ROLE_ID=1,2,3  # 使用逗号分隔多个角色ID
 或通过命令行参数：
 
 ```bash
-hecom-codearts daily --role-id 1,2,3
-hecom-codearts work-hour --role-id 1,2,3
+codearts daily --role-id 1,2,3
+codearts work-hour --role-id 1,2,3
 ```
 
 ### API服务层

@@ -13,7 +13,7 @@ const version = packageJson.version || '0.0.1';
 
 const program = new Command();
 
-program.name('hecom-codearts').description('华为云 CodeArts API 工时统计分析工具').version(version);
+program.name('codearts').description('华为云 CodeArts API 工时统计分析工具').version(version);
 
 // 全局选项（环境变量覆盖）
 program
@@ -38,7 +38,7 @@ program
 program
   .command('daily [date]')
   .description(
-    '生成日报统计\n\n示例:\n  $ hecom-codearts daily\n  $ hecom-codearts daily 2026-01-15\n  $ hecom-codearts daily --project-id abc123 --role-id 1,2'
+    '生成日报统计\n\n示例:\n  $ codearts daily\n  $ codearts daily 2026-01-15\n  $ codearts daily --project-id abc123 --role-id 1,2'
   )
   .action(async (date) => {
     const opts = program.opts();
@@ -49,7 +49,7 @@ program
 program
   .command('work-hour [year]')
   .description(
-    '生成年度工时统计\n\n示例:\n  $ hecom-codearts work-hour\n  $ hecom-codearts work-hour 2025\n  $ hecom-codearts work-hour 2025 --role-id 1,2,3'
+    '生成年度工时统计\n\n示例:\n  $ codearts work-hour\n  $ codearts work-hour 2025\n  $ codearts work-hour 2025 --role-id 1,2,3'
   )
   .action(async (year) => {
     const opts = program.opts();
@@ -76,9 +76,9 @@ program.addHelpText(
   命令行参数 > 环境变量 > 默认值
 
 快速开始:
-  1. 运行配置向导: hecom-codearts init
-  2. 生成日报: hecom-codearts daily
-  3. 生成年度工时统计: hecom-codearts work-hour
+  1. 运行配置向导: codearts init
+  2. 生成日报: codearts daily
+  3. 生成年度工时统计: codearts work-hour
 
 更多信息:
   https://github.com/summer88123/hecom-codearts
