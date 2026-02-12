@@ -1,9 +1,9 @@
 import inquirer from 'inquirer';
 import {
+  getGlobalConfigPath,
   globalConfigExists,
   readGlobalConfig,
   writeGlobalConfig,
-  getGlobalConfigPath,
 } from '../utils/global-config';
 
 /**
@@ -104,9 +104,6 @@ export async function configCommand(): Promise<void> {
     writeGlobalConfig(answers);
     console.log('\n✅ 全局配置已成功保存');
     console.log(`配置文件位置: ${getGlobalConfigPath()}`);
-    console.log('\n您现在可以在任何目录使用以下命令：');
-    console.log('  codearts daily              # 生成日报');
-    console.log('  codearts work-hour          # 生成年度工时统计');
     console.log('\n提示：配置文件包含敏感信息，请妥善保管。');
   } catch (error) {
     console.error('\n❌ 保存配置文件失败:', error);
