@@ -106,34 +106,12 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
-// 数据处理相关类型
-export interface RawData {
-  id: string;
-  timestamp: string;
-  content: unknown;
-  metadata?: Record<string, unknown>;
-}
-
-export interface ProcessedData {
-  id: string;
-  processedAt: string;
-  result: unknown;
-  summary?: string;
-}
-
 // HTTP请求选项
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
   params?: Record<string, unknown>;
   data?: unknown;
-}
-
-// CodeArts项目相关类型
-export interface ProjectType {
-  SCRUM: 'scrum';
-  NORMAL: 'normal';
-  XBOARD: 'xboard';
 }
 
 export interface ProjectQueryParams {
@@ -264,7 +242,7 @@ export interface IssueUser {
   id: number; // 用户id
   name: string; // 带租户名的用户名（租户名_用户名）
   nick_name: string; // 昵称
-  user_id: string; // 用户uuid
+  user_id: string; // 用户uuid，可能为空，优先使用 id
   user_num_id: number; // 用户数字id
   first_name: string; // 用户名
 }
@@ -391,142 +369,170 @@ export interface AddIssueNotesRequest {
   type?: string; // 工作项所属项目类型，scrum
 }
 
-export interface UserVO {
-  assigned_nick_name?: string; // 用户昵称
-  first_name?: string; // 用户名
-  id?: number; // 用户数字id
-  identifier?: string; // 用户32位uuid
-  last_name?: string; // 用户姓名
-  name?: string; // 有租户信息的用户名
+export interface ListChildIssuesV4Response {
+  issues: IssueItem[]; // 子工作项列表
+  total: number; // 子工作项总数
 }
 
-export interface CustomFieldV2 {
-  name?: string; // 自定义字段
-  value?: string; // 自定义字段对应的值
-  new_name?: string; // 自定义字段修改后的名称
+export interface IssueUserV2 {
+  firstName: string;
+  lastName: string;
+  identifier: string;
+  imageId?: string;
+  name: string;
+  id: number;
+  assignedNickName?: string;
+  authorNickName?: string;
+  closederNickName?: string;
 }
 
-export interface IssueDetailCustomFieldV2 {
-  custom_field?: string; // 自定义字段
-  field_name?: string; // 自定义字段名称
-  value?: string; // 自定义属性对应的值，多个值以英文逗号区分开
-  field_type?: string; // 自定义字段类型
-  description?: string; // 自定义字段描述
+export interface IssueParentV2 {
+  subject: string;
+  id: number;
 }
 
-export interface DomainVO {
-  id?: number; // 领域id
-  name?: string; // 领域名称
+export interface IssueProjectV2 {
+  identifier: string;
+  name: string;
+  id: number;
+  type: string;
 }
 
-export interface ProjectVO {
-  identifier?: string; // 项目uuid
-  name?: string; // 项目名称
-  id?: number; // 项目数字id
-  project_type?: string; // 项目类型
+export interface IssueTrackerV2 {
+  name: string;
+  id: number;
 }
 
-export interface IterationVO {
-  id?: number; // 工作项的迭代id
-  name?: string; // 工作项的迭代名称
+export interface IssueSeverityV2 {
+  name: string;
+  id: number;
 }
 
-export interface StoryPointVO {
-  id?: number; // 工作项的故事点id
-  name?: string; // 工作项的故事点名称
+export interface IssuePriorityV2 {
+  name: string;
+  id: number;
 }
 
-export interface ModuleVO {
-  id?: number; // 工作项的模块id
-  name?: string; // 工作项的模块名称
+export interface IssueStatusV2 {
+  name: string;
+  id: number;
 }
 
-export interface ParentIssueVO {
-  id?: number; // 工作项的父工作项id
-  name?: string; // 工作项的父工作项名称
+export interface IssueStatusAttributeV2 {
+  name: string;
+  id: number;
 }
 
-export interface PriorityVO {
-  id?: number; // 工作项的优先级id
-  name?: string; // 工作项的优先级名称
+export interface IssueDomainV2 {
+  name: string;
+  id: number;
 }
 
-export interface SeverityVO {
-  id?: number; // 工作项的重要程度id
-  name?: string; // 工作项的重要程度名称
+export interface IssueModuleV2 {
+  id?: number;
+  name?: string;
 }
 
-export interface StatusVO {
-  id?: number; // 工作项的当前状态id
-  name?: string; // 工作项的当前状态名称
+export interface IssueDeveloperV2 {
+  id?: number;
+  name?: string;
 }
 
-export interface EnvVO {
-  id?: number; // 缺陷发现环境id
-  name?: string; // 缺陷发现环境名称
+export interface IssueFixedVersionV2 {
+  name: string;
+  id: number;
 }
 
-export interface TrackerVO {
-  id?: number; // 工作项的类型id
-  name?: string; // 工作项的类型名称
+export interface IssueOrderV2 {
+  name: number;
+  id: number;
 }
 
-export interface IssueAccessoryV2 {
-  attachment_id?: number; // 附件id
-  issue_id?: number; // 工作项数字id
-  creator_num_id?: number; // 附件的上传者数字ID
-  created_date?: string; // 附件创建时间
-  file_name?: string; // 附件名称
-  container_type?: string; // 附件所属类型
-  disk_file_name?: string; // 附件在服务器上实际名称
-  digest?: string; // 附件来源
-  disk_directory?: string; // 附件在服务器上的路径
-  creator_id?: string; // 附件的上传者uuid
+export interface IssueCustomValueNewV2 {
+  [key: string]: string;
 }
 
-export interface IssueDetailResponseV2 {
-  actual_work_hours?: number; // 工作项的实际工时
-  assigned_cc_user?: UserVO[]; // 当前工作项的抄送人
-  assigned_to?: UserVO; // 工作项的当前责任人
-  start_date?: string; // 工作项的预计开始时间，时间戳格式
-  created_on?: string; // 工作项创建时间，时间戳格式
-  author?: UserVO; // 工作项的创建人
-  custom_fields?: CustomFieldV2[]; // 工作项的自定义字段
-  custom_value_new?: IssueDetailCustomFieldV2; // 工作项的自定义字段
-  developer?: UserVO; // 工作项的开发人员
-  domain?: DomainVO; // 工作项的领域信息
-  done_ratio?: number; // 工作项完成度
-  end_time?: string; // 工作项的预计结束时间，时间戳格式
-  expected_work_hours?: number; // 工作项的预计完成工时
-  id?: number; // 工作项id
-  project?: ProjectVO; // 工作项所属项目信息
-  iteration?: IterationVO; // 工作项所属迭代信息
-  story_point?: StoryPointVO; // 工作项的故事点信息
-  module?: ModuleVO; // 工作项的模块信息
-  subject?: string; // 工作项的标题
-  parent_issue?: ParentIssueVO; // 工作项的父工作项信息
-  priority?: PriorityVO; // 工作项的优先级
-  severity?: SeverityVO; // 工作项的重要程度
-  status?: StatusVO; // 工作项的当前状态
-  release_dev?: string; // 工作项发布版本号
-  find_release_dev?: string; // 缺陷发现版本号
-  env?: EnvVO; // 缺陷发现环境
-  tracker?: TrackerVO; // 工作项类型
-  updated_on?: string; // 工作项的最后更新时间，时间戳格式
-  closed_time?: string; // 工作项的关闭时间，时间戳格式
-  description?: string; // 工作项描述
-  accessories_list?: IssueAccessoryV2[]; // 工作项的附件列表
-  inner_text?: string; // 工作项更新的评论内容
+export interface IssueItemV2 {
+  id: number;
+  subject: string;
+  description: string;
+  updated_on: string;
+  created_on: string;
+  closed_on: string;
+  parent_issue?: IssueParentV2;
+  parent_issue_id?: number;
+  project: IssueProjectV2;
+  done_ratio: number;
+  findReleaseDev: string;
+  tracker: IssueTrackerV2;
+  releaseDev: string;
+  customValueNew?: IssueCustomValueNewV2;
+  order?: IssueOrderV2;
+  assigned_to: IssueUserV2;
+  status_attribute: IssueStatusAttributeV2;
+  severity: IssueSeverityV2;
+  isParent: boolean;
+  author: IssueUserV2;
+  module: IssueModuleV2;
+  expected_work_hours: number;
+  priority: IssuePriorityV2;
+  actual_work_hours: number;
+  is_watcher: boolean;
+  deleted: boolean;
+  fixed_version?: IssueFixedVersionV2;
+  is_archived: boolean;
+  domain: IssueDomainV2;
+  developer: IssueDeveloperV2;
+  closeder?: IssueUserV2;
+  position: string;
+  closed_flag: number;
+  assigned_cc_user: IssueUserV2[];
+  status: IssueStatusV2;
 }
 
-export interface AddIssueNotesResult {
-  issue: IssueDetailResponseV2;
+export interface ListChildIssuesV2Response {
+  result: {
+    total_count: number;
+    issues: IssueItemV2[];
+  };
+  status: 'success';
 }
 
-export interface AddIssueNotesResponse {
-  result: AddIssueNotesResult; // 返回信息
-  status: string; // 返回状态
+// 自定义字段定义相关类型
+/**
+ * 自定义字段类型枚举
+ */
+export type CustomFieldType =
+  | 'textbox' // 单行文本框
+  | 'textarea' // 多行文本框
+  | 'checkbox' // 多选框
+  | 'radio' // 单选框
+  | 'select' // 下拉选择
+  | 'date' // 日期选择器
+  | 'number'; // 数字输入框
+
+/**
+ * 缺陷技术分析选项枚举
+ * custom_field32（缺陷技术分析）字段的选项值枚举定义
+ */
+export enum DefectAnalysisType {
+  FUNCTION_IMPLEMENTATION = '功能实现问题',
+  REQUIREMENT_CHANGE = '需求变更问题',
+  LEGACY_ISSUE = '历史遗留问题',
+  CODE_LOGIC = '代码逻辑问题',
+  USER_INTERFACE = '用户界面问题',
+  INTERFACE = '接口问题',
+  DATA = '数据问题',
+  PERFORMANCE = '性能问题',
+  ENVIRONMENT = '环境问题',
+  COMPATIBILITY = '兼容性问题',
+  PRODUCT_DESIGN = '产品设计问题',
+  OPTIMIZATION_SUGGESTION = '优化建议问题',
+  TECH_REQUIREMENT_CHANGE = '技术引起的需求变更问题',
+  USAGE_AND_CONFIG = '使用及配置问题',
+  OTHER = '其他问题',
 }
+
 /**
  * 用户工作项统计信息
  */

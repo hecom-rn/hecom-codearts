@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
-import dotenv from 'dotenv';
-import { dailyCommand } from '../commands/daily.command';
+import { bugCommand } from '../commands/bug.command';
 import { configCommand } from '../commands/config.command';
+import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { globalConfigExists } from '../utils/global-config';
 
@@ -56,6 +57,17 @@ program
   .action(async (year) => {
     const opts = program.opts();
     await workHourCommand(year, opts);
+  });
+
+// bug-rate 命令
+program
+  .command('bug-rate <iterations>')
+  .description(
+    '统计迭代中的 Bug 数量\n\n按 Story 的处理人分组统计 Bug 数量\n支持多个迭代（逗号分隔）\n\n示例:\n  $ codearts bug-rate "迭代1,迭代2"'
+  )
+  .action(async (iterations) => {
+    const opts = program.opts();
+    await bugCommand(iterations, opts);
   });
 
 // 添加帮助信息

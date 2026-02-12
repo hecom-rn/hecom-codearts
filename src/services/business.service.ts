@@ -1,8 +1,8 @@
 import {
   AllWorkHourStats,
   HuaweiCloudConfig,
-  IssueDetailResponseV2,
   IssueItem,
+  IssueItemV2,
   IterationInfo,
   ProjectMember,
   TypeWorkHourStats,
@@ -145,21 +145,6 @@ export class BusinessService {
     return issuesResponse.data?.issues || [];
   }
 
-  async addIssueNote(
-    projectId: string,
-    issueId: number,
-    content: string
-  ): Promise<IssueDetailResponseV2> {
-    const result = await this.apiService.addIssueNotes({
-      projectUUId: projectId,
-      id: String(issueId),
-      notes: content,
-    });
-    if (result.data?.status === 'success') {
-      return result.data.result.issue;
-    }
-    throw new Error(`添加工作项备注失败: ${result.data?.status || '未知错误'}`);
-  }
   /**
    * 统计工作项进度信息
    * @param issues 工作项列表
@@ -289,6 +274,81 @@ export class BusinessService {
       totalEntries: workHours.length,
       userStats,
     };
+  }
+
+  /**
+   * 根据迭代标题获取迭代信息
+   * @param projectId 项目ID
+   * @param iterationTitles 迭代标题列表
+   * @returns 匹配的迭代信息列表
+   */
+  async getIterationsByTitles(
+    projectId: string,
+    iterationTitles: string[]
+  ): Promise<IterationInfo[]> {
+    const iterationsResponse = await this.apiService.getIterations(projectId, {
+      include_deleted: false,
+    });
+
+    if (!iterationsResponse.success) {
+      throw new Error(`获取迭代列表失败: ${iterationsResponse.error || '未知错误'}`);
+    }
+
+    const iterations = iterationsResponse.data?.iterations || [];
+
+    // 过滤出标题匹配的迭代
+    return iterations.filter((iteration) => iterationTitles.includes(iteration.name));
+  }
+
+  /**
+   * 根据迭代标题获取所有 Story
+   * @param projectId 项目ID
+   * @param iterationTitles 迭代标题列表
+   * @returns Story 类型的工作项列表
+   */
+  async getStoriesByIterationTitles(
+    projectId: string,
+    iterationTitles: string[]
+  ): Promise<IssueItem[]> {
+    // Step 1: 根据标题获取迭代信息
+    const iterations = await this.getIterationsByTitles(projectId, iterationTitles);
+
+    if (iterations.length === 0) {
+      return [];
+    }
+
+    // Step 2: 提取迭代ID
+    const iterationIds = iterations.map((iteration) => iteration.id);
+
+    // Step 3: 分页查询所有 Story（tracker_id = 7）
+    const allStories: IssueItem[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const issuesResponse = await this.apiService.getIssues(projectId, {
+        iteration_ids: iterationIds,
+        tracker_ids: [7], // 7=Story
+        include_deleted: false,
+        limit: pageSize,
+        offset: offset,
+      });
+
+      if (!issuesResponse.success) {
+        throw new Error(`获取Story列表失败: ${issuesResponse.error || '未知错误'}`);
+      }
+
+      const stories = issuesResponse.data?.issues || [];
+      allStories.push(...stories);
+
+      // 判断是否还有更多数据
+      const total = issuesResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allStories;
   }
 
   /**
@@ -436,5 +496,35 @@ export class BusinessService {
       totalEntries: allWorkHours.length,
       userStats,
     };
+  }
+
+  /**
+   * 获取指定工作项的所有子工作项（处理分页）
+   * @param projectId 项目ID
+   * @param issueId 父工作项ID
+   * @returns 所有子工作项列表
+   */
+  async getChildIssues(projectId: string, issueId: string): Promise<IssueItemV2[]> {
+    const allChildIssues: IssueItemV2[] = [];
+    const pageSize = 100;
+    let pageNo = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.apiService.getChildIssues(projectId, issueId, pageSize, pageNo);
+
+      if (!response.success || !response.data) {
+        throw new Error(`获取子工作项失败: ${response.error || '未知错误'}`);
+      }
+
+      const childIssues = response.data.result.issues || [];
+      allChildIssues.push(...childIssues);
+
+      const total = response.data.result.total_count || 0;
+      hasMore = pageNo * pageSize < total;
+      pageNo++;
+    }
+
+    return allChildIssues;
   }
 }
