@@ -1,6 +1,6 @@
 {
   "name": "@hecom/codearts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "华为云 CodeArts 统计分析工具",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
