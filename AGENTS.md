@@ -11,12 +11,13 @@
 - 通过华为云 CodeArts API 获取 issue、人员、工时数据
 - 生成日报统计（每日工时、Bug 修复、工作进度）
 - 生成年度工时统计报表（按人员、领域分组）
+- 统计迭代中的产品缺陷率（按处理人分组）
 - 支持 IAM Token 自动认证和缓存
 
 ### 技术栈
 
 - **语言**: TypeScript 5.2+
-- **运行时**: Node.js >= 16
+- **运行时**: Node.js >= 23
 - **HTTP 客户端**: Axios
 - **测试框架**: Jest + ts-jest
 - **代码检查**: ESLint + Prettier
@@ -37,17 +38,11 @@ npm run build
 # CLI 命令方式（推荐）
 codearts config                 # 交互式配置向导
 codearts daily                # 运行日报统计（默认当天）
-codearts daily 2026-01-15     # 运行日报统计（指定日期）
 codearts work-hour            # 运行年度工时统计（当前年份）
-codearts work-hour 2025       # 运行年度工时统计（指定年份）
-
-# CLI 命令 - 使用参数覆盖环境变量
-codearts daily --project-id abc123 --role-id 1,2
-codearts work-hour 2025 --role-id 1,2,3
+codearts bug-rate "迭代1,迭代2"  # 统计指定迭代的产品缺陷率
 
 # 本地开发
-npm link                            # 本地链接 CLI 工具
-codearts --help                     # 查看帮助
+npm run dev                            # 本地执行命令
 ```
 
 ### 测试命令
@@ -55,25 +50,6 @@ codearts --help                     # 查看帮助
 ```bash
 # 运行所有测试
 npm test
-
-# 监听模式运行测试
-npm run test:watch
-
-# 运行测试并生成覆盖率报告
-npm run test:coverage
-```
-
-### 运行单个测试文件
-
-```bash
-# 方式一：使用 Jest 直接运行
-npx jest src/services/api.service.test.ts
-
-# 方式二：使用 pattern 匹配
-npm test -- --testPathPattern=api.service
-
-# 方式三：运行特定测试用例（使用 -t 参数）
-npm test -- -t "should fetch projects successfully"
 ```
 
 ### 代码检查和格式化
@@ -97,7 +73,8 @@ src/
 ├── bin/                    # CLI 入口
 │   └── cli.ts              # Commander.js CLI 定义
 ├── commands/               # 命令实现
-│   ├── init.command.ts     # 交互式配置向导
+│   ├── bug.command.ts     # 产品缺陷率统计命令逻辑
+│   ├── config.command.ts     # 交互式配置向导
 │   ├── daily.command.ts    # 日报命令逻辑
 │   ├── work-hour.command.ts# 工时统计命令逻辑
 │   └── index.ts            # 命令导出
@@ -105,6 +82,7 @@ src/
 │   ├── api.service.ts      # 华为云基础 API 封装
 │   └── business.service.ts # 业务场景 API 封装
 ├── utils/                  # 工具函数
+│   ├── global-config.ts     # 全局配置管理
 │   └── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
 ├── config/
 │   └── holidays.ts         # 节假日配置与工作日计算
@@ -123,7 +101,7 @@ bin/
 使用 Commander.js 框架构建命令行工具：
 
 - 定义全局选项（--project-id, --role-id, --username 等）
-- 注册子命令（init, daily, work-hour）
+- 注册子命令（config, daily, work-hour, bug-rate）
 - 处理命令行参数解析
 - 提供 --help 帮助信息
 
@@ -131,9 +109,10 @@ bin/
 
 每个命令一个独立模块：
 
-- `init.command.ts`: 交互式配置向导（使用 inquirer）
+- `config.command.ts`: 交互式配置向导（使用 inquirer）
 - `daily.command.ts`: 日报统计命令实现
 - `work-hour.command.ts`: 年度工时统计命令实现
+- `bug.command.ts`: 产品缺陷率统计命令逻辑
 - 命令函数接收可选参数，支持通过环境变量和 CLI 参数配置
 
 #### 配置加载层（src/utils/config-loader.ts）
@@ -151,9 +130,10 @@ bin/
 ### 关键文件说明
 
 - **`src/bin/cli.ts`**: CLI 入口，使用 Commander.js 定义命令和选项
-- **`src/commands/init.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建 .env 文件
+- **`src/commands/config.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建 .env 文件
 - **`src/commands/daily.command.ts`**: 日报统计核心逻辑（从 daily.ts 提取）
 - **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
+- **`src/commands/bug.command.ts`**: 产品缺陷率统计命令逻辑
 - **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和环境变量
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
