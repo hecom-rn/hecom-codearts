@@ -1,7 +1,7 @@
 {
   "name": "@hecom/codearts",
   "version": "0.1.0",
-  "description": "从CodeArts获取日报信息",
+  "description": "华为云 CodeArts 统计分析工具",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -41,7 +41,7 @@
     "url": "https://github.com/hecom-rn/hecom-codearts/issues"
   },
   "engines": {
-    "node": ">=16.0.0",
+    "node": ">=23.0.0",
     "npm": ">=7.0.0"
   },
   "dependencies": {

@@ -4,7 +4,7 @@
 
 ## 1. 项目概述
 
-这是一个基于 **TypeScript/Node.js** 构建的**华为云 CodeArts API 工时统计分析工具**。
+这是一个基于 **TypeScript/Node.js** 构建的**华为云 CodeArts 统计分析工具**。
 
 ### 核心功能
 
