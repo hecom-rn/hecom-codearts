@@ -6,6 +6,7 @@ import {
   IamTokenRequest,
   IamTokenResponse,
   ListChildIssuesV2Response,
+  ListChildIssuesV4Response,
   ListIssuesV4Request,
   ListIssuesV4Response,
   ListProjectIterationsV4Request,
@@ -386,16 +387,28 @@ export class ApiService {
   /**
    * 查询子工作项 (ListChildIssuesV4)
    * 获取指定工作项的所有子工作项
+   *
+   * FIXME: 华为云接口有问题，只能查询 15 条数据
    */
   async getChildIssues(
+    projectId: string,
+    issueId: string
+  ): Promise<ApiResponse<ListChildIssuesV4Response>> {
+    return this.request(`/v4/projects/${projectId}/issues/${issueId}/child`, {
+      method: 'GET',
+    });
+  }
+
+  /**
+   * 查询子工作项 (ListChildIssuesV2)
+   * 获取指定工作项的所有子工作项
+   */
+  async getChildIssuesV2(
     projectId: string,
     issueId: string,
     pageSize: number = 100,
     pageNo: number = 1
   ): Promise<ApiResponse<ListChildIssuesV2Response>> {
-    // return this.request(`/v4/projects/${projectId}/issues/${issueId}/child`, {
-    //   method: 'GET',
-    // });
     return this.request('/v2/issues/child-issue-list', {
       method: 'POST',
       data: {

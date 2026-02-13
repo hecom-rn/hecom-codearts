@@ -511,7 +511,7 @@ export class BusinessService {
     let hasMore = true;
 
     while (hasMore) {
-      const response = await this.apiService.getChildIssues(projectId, issueId, pageSize, pageNo);
+      const response = await this.apiService.getChildIssuesV2(projectId, issueId, pageSize, pageNo);
 
       if (!response.success || !response.data) {
         throw new Error(`获取子工作项失败: ${response.error || '未知错误'}`);
