@@ -21,6 +21,7 @@ interface BugStats {
 interface BugReportData {
   iterations: string[];
   roleIds: number[];
+  roleNames: string[];
   userStats: BugStats[];
   summary: {
     totalBugs: number;
@@ -55,11 +56,15 @@ async function queryBugReportData(
   roleIds: number[],
   iterationTitles: string[]
 ): Promise<BugReportData> {
+  const roleNames = new Set<string>();
   const targetMemberIds = new Set<number>();
   if (roleIds.length > 0) {
     for (const roleId of roleIds) {
       const members = await businessService.getMembersByRoleId(projectId, roleId);
-      members.forEach((member) => targetMemberIds.add(member.user_num_id));
+      members.forEach((member) => {
+        targetMemberIds.add(member.user_num_id);
+        roleNames.add(member.role_name);
+      });
     }
   }
 
@@ -69,6 +74,7 @@ async function queryBugReportData(
     return {
       iterations: iterationTitles,
       roleIds,
+      roleNames: Array.from(roleNames),
       userStats: [],
       summary: {
         totalBugs: 0,
@@ -91,6 +97,7 @@ async function queryBugReportData(
     return {
       iterations: iterationTitles,
       roleIds,
+      roleNames: Array.from(roleNames),
       userStats: [],
       summary: {
         totalBugs: 0,
@@ -168,6 +175,7 @@ async function queryBugReportData(
   return {
     iterations: iterationTitles,
     roleIds,
+    roleNames: Array.from(roleNames),
     userStats: sortedStats,
     summary: {
       totalBugs,
@@ -179,26 +187,25 @@ async function queryBugReportData(
 }
 
 /**
- * 控制台输出Bug统计
+ * 控制台输出产品缺陷率统计
  */
 function outputConsole(data: BugReportData): void {
-  logger.info(`Bug 统计报告 [${data.iterations.join(', ')}]`);
+  logger.info(`产品缺陷率统计 [${data.roleNames.join(', ')}]`);
   logger.info('='.repeat(80));
-  logger.info('\x1b[36m整体数据汇总:\x1b[0m');
-  logger.info(
-    `  总 Bug 数: ${data.summary.totalBugs} 个 | 产品问题: ${data.summary.totalProductBugs} 个 | 产品缺陷率: ${data.summary.overallProductDefectRate.toFixed(2)}% | 处理人数: ${data.summary.userCount} 位`
-  );
+  logger.info(`产品缺陷率: ${data.summary.overallProductDefectRate.toFixed(2)}% `);
+  logger.info(`总 Bug 数: ${data.summary.totalBugs}个`);
+  logger.info(`产品问题: ${data.summary.totalProductBugs}个`);
+  logger.info(`统计人数: ${data.summary.userCount}人`);
+  logger.info(`统计迭代: ${data.iterations.join(', ')}`);
   logger.info('='.repeat(80));
 
   data.userStats.forEach((stats) => {
     logger.info(
-      `\x1b[31m${stats.assignedUser}: 总 Bug ${stats.totalBugCount} 个 | 产品问题 ${stats.productBugCount} 个 | 产品缺陷率 ${stats.productDefectRate.toFixed(2)}%\x1b[0m`
+      `\x1b[31m${stats.assignedUser}: ${stats.productDefectRate.toFixed(2)}% (${stats.productBugCount}/${stats.totalBugCount})\x1b[0m`
     );
 
     stats.stories.forEach((story) => {
-      logger.info(
-        `  - ${story.storyName} (总 ${story.totalBugCount} 个 Bug，其中产品问题 ${story.productBugCount} 个)`
-      );
+      logger.info(`  ${story.storyName} (${story.productBugCount}/${story.totalBugCount})`);
     });
 
     logger.info('');
@@ -219,14 +226,10 @@ function outputCsv(data: BugReportData, iterationTitles: string[]): void {
           ? ((story.productBugCount / story.totalBugCount) * 100).toFixed(2)
           : '0.00';
       csvLines.push(
-        `"${escapeCsv(data.iterations.join(', '))}",${userStat.assignedUser},"${escapeCsv(story.storyName)}",${story.storyId},${story.totalBugCount},${story.productBugCount},${defectRate}%`
+        `"${escapeCsv(data.iterations.join(', '))}",${userStat.assignedUser ?? ''},"${escapeCsv(story.storyName ?? '')}",${story.storyId ?? ''},${story.totalBugCount ?? ''},${story.productBugCount ?? ''},${defectRate}%`
       );
     });
   });
-
-  csvLines.push(
-    `\n总计,,,,${data.summary.totalBugs},${data.summary.totalProductBugs},${data.summary.overallProductDefectRate.toFixed(2)}%`
-  );
 
   const filename = `bug-rate-${iterationTitles.join('-')}.csv`;
   writeCsvFile(filename, csvLines, logger);

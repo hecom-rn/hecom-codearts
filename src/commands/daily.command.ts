@@ -258,44 +258,139 @@ async function queryDailyReportData(
 }
 
 /**
- * 控制台输出日报
+ * 控制台输出日报（多角色统一汇总）
  */
-function outputConsole(data: DailyReportData): void {
-  logger.info(`\n${data.date} 日报 [${data.roleName}]:`);
-  logger.info('='.repeat(50));
+function outputConsole(allReports: DailyReportData[], showReport: boolean = false): void {
+  if (allReports.length === 0) {
+    return;
+  }
 
-  data.userStats.forEach((userStat) => {
-    logger.info(`\n\x1b[31m${userStat.userName} 工时: ${userStat.totalHours}小时\x1b[0m`);
-    userStat.workHours.forEach((workHour) => {
-      const summaryPart =
-        workHour.summary && workHour.summary.trim() !== ''
-          ? ` \x1b[36m${workHour.summary}\x1b[0m`
-          : '';
-      const workHoursTypePart = workHour.workHoursTypeName
-        ? ` (${workHour.workHoursTypeName})`
-        : '';
-      logger.info(
-        ` - ${workHour.subject}${summaryPart} (${workHour.issueType})${workHoursTypePart} ${workHour.workHoursNum}小时`
-      );
+  const targetDate = allReports[0].date;
+  logger.info(`\n${targetDate} 工时统计 [${allReports.map((r) => r.roleName).join(', ')}]`);
+  logger.info('='.repeat(80));
+
+  // 按角色显示汇总工时和人数
+  const roleSummaries: Array<{ roleName: string; totalHours: number; memberCount: number }> = [];
+  const total = { totalHours: 0, memberCount: 0, roleName: '总计' };
+
+  allReports.forEach((report) => {
+    roleSummaries.push({
+      roleName: report.roleName,
+      totalHours: report.totalHours,
+      memberCount: report.userStats.length,
+    });
+    total.totalHours += report.totalHours;
+    total.memberCount += report.userStats.length;
+  });
+  roleSummaries.push(total);
+
+  roleSummaries.forEach((summary) => {
+    logger.info(`[${summary.roleName}] ${summary.totalHours}小时, 人数: ${summary.memberCount}人`);
+  });
+
+  logger.info('='.repeat(80));
+
+  // 平铺所有用户的工时明细
+  allReports.forEach((report) => {
+    report.userStats.forEach((userStat) => {
+      logger.info(`\n\x1b[31m${userStat.userName} ${userStat.totalHours}小时\x1b[0m`);
+      userStat.workHours
+        .sort((a, b) => a.issueType.localeCompare(b.issueType))
+        .forEach((workHour) => {
+          const summaryPart =
+            workHour.summary && workHour.summary.trim() !== ''
+              ? ` \x1b[36m${workHour.summary}\x1b[0m`
+              : '';
+          const workHoursTypePart = workHour.workHoursTypeName
+            ? ` (${workHour.workHoursTypeName})`
+            : '';
+          logger.info(
+            `  [${workHour.issueType}]${workHour.subject}${summaryPart} ${workHoursTypePart} ${workHour.workHoursNum}小时`
+          );
+        });
     });
   });
 
+  if (!showReport) {
+    return;
+  }
+
+  // 总结报告（合并所有角色的数据）
+  consoleReport(allReports, total);
+}
+
+function consoleReport(
+  allReports: DailyReportData[],
+  total: { totalHours: number; memberCount: number; roleName: string }
+) {
   logger.info('\n\n');
-  logger.info(`总结报告 [${data.roleName}]:`);
-  logger.info('='.repeat(50));
+  logger.info(`总结报告:`);
+  logger.info('='.repeat(80));
 
   let index = 1;
-  if (data.bugSummary.count > 0) {
-    logger.info(`\n${index}.Bug跟进: ${data.bugSummary.count}项`);
-    if (data.bugSummary.count < 6) {
-      data.bugSummary.items.forEach((bug) => {
-        logger.info(` - ${bug.title} ${bug.users}`);
+
+  // 合并所有 Bug
+  const allBugs = new Map<string, { title: string; users: Set<string>; hours: number }>();
+  allReports.forEach((report) => {
+    report.bugSummary.items.forEach((bug) => {
+      if (allBugs.has(bug.title)) {
+        const existing = allBugs.get(bug.title)!;
+        bug.users.split('、').forEach((user) => existing.users.add(user));
+        existing.hours += bug.hours;
+      } else {
+        allBugs.set(bug.title, {
+          title: bug.title,
+          users: new Set(bug.users.split('、')),
+          hours: bug.hours,
+        });
+      }
+    });
+  });
+
+  if (allBugs.size > 0) {
+    logger.info(`\n${index}.Bug跟进: ${allBugs.size}项`);
+    if (allBugs.size < 6) {
+      Array.from(allBugs.values()).forEach((bug) => {
+        logger.info(` - ${bug.title} ${Array.from(bug.users).join('、')}`);
       });
     }
     index++;
   }
 
-  data.iterationProgress.forEach((iteration) => {
+  // 合并所有迭代进度
+  const allIterations = new Map<
+    string,
+    {
+      iterationName: string;
+      completionRate: number;
+      activeIssues: Array<{ name: string; doneRatio: number; assignedUser: string }>;
+    }
+  >();
+
+  allReports.forEach((report) => {
+    report.iterationProgress.forEach((iteration) => {
+      if (allIterations.has(iteration.iterationName)) {
+        const existing = allIterations.get(iteration.iterationName)!;
+        // 使用最高的完成率
+        existing.completionRate = Math.max(existing.completionRate, iteration.completionRate);
+        // 合并活跃问题（去重）
+        iteration.activeIssues.forEach((issue) => {
+          const exists = existing.activeIssues.some((i) => i.name === issue.name);
+          if (!exists) {
+            existing.activeIssues.push(issue);
+          }
+        });
+      } else {
+        allIterations.set(iteration.iterationName, {
+          iterationName: iteration.iterationName,
+          completionRate: iteration.completionRate,
+          activeIssues: [...iteration.activeIssues],
+        });
+      }
+    });
+  });
+
+  Array.from(allIterations.values()).forEach((iteration) => {
     logger.info(`${index}.${iteration.iterationName} ${iteration.completionRate}%`);
     index++;
 
@@ -304,30 +399,38 @@ function outputConsole(data: DailyReportData): void {
     });
   });
 
-  if (data.otherWork.length > 0) {
-    logger.info(`${index}.其他: ${data.otherWork.length}项`);
-    data.otherWork.forEach((work) => {
+  // 合并所有其他工作
+  const allOtherWork: Array<{ subject: string; summary: string; nickName: string }> = [];
+  allReports.forEach((report) => {
+    allOtherWork.push(...report.otherWork);
+  });
+
+  if (allOtherWork.length > 0) {
+    logger.info(`${index}.其他: ${allOtherWork.length}项`);
+    allOtherWork.forEach((work) => {
       const subjectPart = work.subject ? `${work.subject} ` : '';
       logger.info(` - ${subjectPart}${work.summary} ${work.nickName}`);
     });
     index++;
   }
 
-  logger.info(`${index}.工时: ${data.totalHours}`);
+  logger.info(`${index}.工时: ${total.totalHours}`);
 }
 
 /**
  * CSV 文件输出
  */
-function outputCsv(data: DailyReportData, targetDate: string): void {
+function outputCsv(list: DailyReportData[], targetDate: string): void {
   const csvLines: string[] = [];
   csvLines.push('日期,角色,用户,工作项,摘要,类型,工时类型,工时');
 
-  data.userStats.forEach((userStat) => {
-    userStat.workHours.forEach((workHour) => {
-      csvLines.push(
-        `${data.date},${data.roleName},${userStat.userName},"${escapeCsv(workHour.subject)}","${escapeCsv(workHour.summary)}",${workHour.issueType},${workHour.workHoursTypeName},${workHour.workHoursNum}`
-      );
+  list.forEach((data) => {
+    data.userStats.forEach((userStat) => {
+      userStat.workHours.forEach((workHour) => {
+        csvLines.push(
+          `${data.date ?? ''},${data.roleName ?? ''},${userStat.userName ?? ''},"${escapeCsv(workHour.subject)}","${escapeCsv(workHour.summary)}",${workHour.issueType ?? ''},${workHour.workHoursTypeName ?? ''},${workHour.workHoursNum ?? ''}`
+        );
+      });
     });
   });
 
@@ -338,7 +441,7 @@ function outputCsv(data: DailyReportData, targetDate: string): void {
 /**
  * JSON 输出（直接打印到控制台，供编程调用）
  */
-function outputJson(data: DailyReportData | DailyReportData[]): void {
+function outputJson(data: DailyReportData[]): void {
   logger.json(data);
 }
 
@@ -348,37 +451,28 @@ function outputJson(data: DailyReportData | DailyReportData[]): void {
 export async function dailyCommand(date?: string, cliOptions: CliOptions = {}): Promise<void> {
   try {
     const targetDate = date || new Date().toISOString().split('T')[0];
+    const showReport = cliOptions.report ?? false;
 
     const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
 
     const businessService = new BusinessService(config);
     const allReports: DailyReportData[] = [];
 
-    for (let i = 0; i < roleIds.length; i++) {
-      const roleId = roleIds[i];
-
-      if (i > 0 && outputFormat === 'console') {
-        logger.info('\n\n' + '='.repeat(80) + '\n');
-      }
-
+    for (const roleId of roleIds) {
       const reportData = await queryDailyReportData(businessService, projectId, roleId, targetDate);
 
       if (reportData) {
         allReports.push(reportData);
-
-        if (outputFormat === 'console') {
-          outputConsole(reportData);
-        }
       }
     }
 
-    // 处理 CSV 和 JSON 输出
-    if (outputFormat === 'csv') {
-      allReports.forEach((report) => {
-        outputCsv(report, targetDate);
-      });
+    // 控制台输出
+    if (outputFormat === 'console') {
+      outputConsole(allReports, showReport);
+    } else if (outputFormat === 'csv') {
+      outputCsv(allReports, targetDate);
     } else if (outputFormat === 'json') {
-      outputJson(allReports.length === 1 ? allReports[0] : allReports);
+      outputJson(allReports);
     }
   } catch (error) {
     logger.error(`执行过程中发生错误:`, error);

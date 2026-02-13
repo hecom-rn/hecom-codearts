@@ -31,7 +31,7 @@ program
 // config 命令 - 交互式配置向导
 const configCmd = program
   .command('config')
-  .description('交互式配置向导，引导用户创建或更新全局配置文件\n\n')
+  .description('交互式配置向导，引导用户创建或更新全局配置文件')
   .action(async () => {
     await configCommand();
   });
@@ -59,9 +59,10 @@ availableConfigs.forEach((configItem) => {
 // daily 命令
 program
   .command('daily [date]')
-  .description('生成日报统计')
+  .description('每日工时统计（默认日期为当天）')
+  .option('-r, --report', '显示总结报告', false)
   .action(async (date, options, command) => {
-    const cliOptions = command.parent.opts();
+    const cliOptions = { ...command.parent.opts(), report: options.report };
     logger.setOutputFormat(cliOptions.output);
     await dailyCommand(date, cliOptions);
   });
@@ -69,7 +70,7 @@ program
 // work-hour 命令
 program
   .command('work-hour [year]')
-  .description('生成年度工时统计')
+  .description('年度工时统计（默认当前年份）')
   .action(async (year, options, command) => {
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -79,7 +80,7 @@ program
 // bug-rate 命令
 program
   .command('bug-rate <iterations>')
-  .description('按迭代统计产品缺陷率，支持多个迭代（逗号分隔）')
+  .description('产品缺陷率统计，支持多个迭代')
   .action(async (iterations, options, command) => {
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);

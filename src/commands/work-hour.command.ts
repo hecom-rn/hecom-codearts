@@ -5,6 +5,13 @@ import { CliOptions, loadConfig } from '../utils/config-loader';
 import { writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
+/**
+ * 处理浮点数精度，保留2位小数
+ */
+function roundToTwo(num: number): number {
+  return Math.round(num * 100) / 100;
+}
+
 interface UserWithRole extends UserAllWorkHourStats {
   roleName: string;
   roleId: number;
@@ -94,7 +101,9 @@ async function queryWorkHourReportData(
   const expectedHoursPerPerson = expectedWorkdays * 8;
   const totalExpectedHours = expectedHoursPerPerson * allMembers.length;
 
-  const totalHours = allUserStats.reduce((sum, userStat) => sum + userStat.totalHours, 0);
+  const totalHours = roundToTwo(
+    allUserStats.reduce((sum, userStat) => sum + userStat.totalHours, 0)
+  );
   const totalEntries = allUserStats.reduce(
     (sum, userStat) => sum + userStat.domainStats.reduce((s, d) => s + d.workHours.length, 0),
     0
@@ -118,7 +127,7 @@ async function queryWorkHourReportData(
       let subtotal = 0;
       allTypes.forEach((type) => {
         subtotalDomainStats[type] = roleSubtotalStats[type] || 0;
-        subtotal += roleSubtotalStats[type] || 0;
+        subtotal = roundToTwo(subtotal + (roleSubtotalStats[type] || 0));
       });
 
       roleSubtotals.push({
@@ -143,13 +152,15 @@ async function queryWorkHourReportData(
     let userTotal = 0;
     userStat.domainStats.forEach((domainStat) => {
       domainStats[domainStat.type] = domainStat.totalHours;
-      userTotal += domainStat.totalHours;
-      typeTotals[domainStat.type] += domainStat.totalHours;
+      userTotal = roundToTwo(userTotal + domainStat.totalHours);
+      typeTotals[domainStat.type] = roundToTwo(typeTotals[domainStat.type] + domainStat.totalHours);
 
       if (!roleSubtotalStats[domainStat.type]) {
         roleSubtotalStats[domainStat.type] = 0;
       }
-      roleSubtotalStats[domainStat.type] += domainStat.totalHours;
+      roleSubtotalStats[domainStat.type] = roundToTwo(
+        roleSubtotalStats[domainStat.type] + domainStat.totalHours
+      );
     });
 
     userStatsData.push({
@@ -165,7 +176,7 @@ async function queryWorkHourReportData(
       let subtotal = 0;
       allTypes.forEach((type) => {
         subtotalDomainStats[type] = roleSubtotalStats[type] || 0;
-        subtotal += roleSubtotalStats[type] || 0;
+        subtotal = roundToTwo(subtotal + (roleSubtotalStats[type] || 0));
       });
 
       roleSubtotals.push({
@@ -180,7 +191,7 @@ async function queryWorkHourReportData(
   let grandTotal = 0;
   allTypes.forEach((type) => {
     grandTotalDomainStats[type] = typeTotals[type];
-    grandTotal += typeTotals[type];
+    grandTotal = roundToTwo(grandTotal + typeTotals[type]);
   });
 
   return {
@@ -205,16 +216,13 @@ async function queryWorkHourReportData(
  * 控制台输出工时统计
  */
 function outputConsole(data: WorkHourReportData): void {
-  logger.info(`\n${data.year}年工时统计报告`);
+  logger.info(`\n${data.year}年工时统计 [${data.roleSubtotals.map((r) => r.roleName).join(', ')}]`);
   logger.info('='.repeat(80));
-  logger.info(`统计期间: ${data.year}-01-01 至 ${data.year}-12-31`);
-  logger.info(`统计角色: ${data.roleCount} 个角色`);
   logger.info(`统计人数: ${data.memberCount} 人`);
   logger.info(`应计工作日: ${data.expectedWorkdays} 天`);
   logger.info(`应计工时: ${data.expectedHours} 小时`);
   logger.info(`实际工时: ${data.actualHours} 小时`);
   logger.info(`工时完成率: ${data.completionRate.toFixed(2)}%`);
-  logger.info(`工时条目: ${data.entryCount} 条`);
   logger.info('='.repeat(80));
 
   // 构建表格数据
@@ -222,31 +230,18 @@ function outputConsole(data: WorkHourReportData): void {
 
   data.userStats.forEach((userStat) => {
     const row: Record<string, string | number> = {
-      角色: userStat.roleName,
       ...userStat.domainStats,
       合计: userStat.total,
     };
     tableData[userStat.userName] = row;
   });
 
-  // 添加角色小计行
-  data.roleSubtotals.forEach((subtotal) => {
-    const row: Record<string, string | number> = {
-      角色: `${subtotal.roleName} 小计`,
-      ...subtotal.domainStats,
-      合计: subtotal.total,
-    };
-    tableData[`─ ${subtotal.roleName} 小计`] = row;
-  });
-
   // 添加总计行
-  tableData['━━ 总计'] = {
-    角色: '━ 总计',
+  tableData['总计'] = {
     ...data.grandTotal.domainStats,
     合计: data.grandTotal.total,
   };
 
-  logger.info('\n工时统计表:');
   logger.table(tableData);
 }
 
@@ -264,14 +259,6 @@ function outputCsv(data: WorkHourReportData, targetYear: string): void {
       `${userStat.userName},${userStat.roleName},${domainValues.join(',')},${userStat.total}`
     );
   });
-
-  data.roleSubtotals.forEach((subtotal) => {
-    const domainValues = domains.map((domain) => subtotal.domainStats[domain] || 0);
-    csvLines.push(`${subtotal.roleName} 小计,,${domainValues.join(',')},${subtotal.total}`);
-  });
-
-  const totalDomainValues = domains.map((domain) => data.grandTotal.domainStats[domain] || 0);
-  csvLines.push(`总计,,${totalDomainValues.join(',')},${data.grandTotal.total}`);
 
   const filename = `work-hour-${targetYear}.csv`;
   writeCsvFile(filename, csvLines, logger);

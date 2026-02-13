@@ -152,6 +152,7 @@ const globalConfig = configExists() ? readConfig() : {};
 export interface CliOptions {
   roleId?: string;
   output?: string;
+  report?: boolean;
 }
 
 export interface LoadedConfig {
