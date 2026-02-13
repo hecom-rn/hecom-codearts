@@ -1,18 +1,149 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { HuaweiCloudConfig } from '../types';
-import { globalConfigExists, readGlobalConfig } from './global-config';
+
+/**
+ * 全局配置管理工具
+ * 配置文件存储在用户主目录下的 .hecom-codearts 目录
+ */
+
+const CONFIG_DIR = path.join(os.homedir(), '.hecom-codearts');
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.env');
+
+/**
+ * 确保配置目录存在
+ */
+function ensureConfigDir(): void {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+}
+
+/**
+ * 获取全局配置文件路径
+ */
+export function getGlobalConfigPath(): string {
+  return CONFIG_FILE;
+}
+
+/**
+ * 检查全局配置文件是否存在
+ */
+export function globalConfigExists(): boolean {
+  return fs.existsSync(CONFIG_FILE);
+}
+
+/**
+ * 读取全局配置
+ */
+export function readGlobalConfig(): Record<string, string> {
+  if (!globalConfigExists()) {
+    return {};
+  }
+
+  const config: Record<string, string> = {};
+
+  try {
+    const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        continue;
+      }
+
+      const equalIndex = trimmedLine.indexOf('=');
+      if (equalIndex > 0) {
+        const key = trimmedLine.substring(0, equalIndex).trim();
+        const value = trimmedLine.substring(equalIndex + 1).trim();
+        config[key] = value;
+      }
+    }
+  } catch (error) {
+    console.error('读取全局配置文件失败:', error);
+  }
+
+  return config;
+}
+
+/**
+ * 配置项分组和顺序定义
+ */
+const CONFIG_GROUPS = [
+  {
+    title: '华为云IAM认证端点（根据区域调整）',
+    keys: ['HUAWEI_CLOUD_IAM_ENDPOINT', 'HUAWEI_CLOUD_REGION'],
+  },
+  {
+    title: 'IAM用户凭证',
+    keys: ['HUAWEI_CLOUD_USERNAME', 'HUAWEI_CLOUD_PASSWORD', 'HUAWEI_CLOUD_DOMAIN'],
+  },
+  {
+    title: '项目配置',
+    keys: ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'],
+  },
+];
+
+/**
+ * 写入全局配置
+ * 支持动态配置项，自动按分组组织配置文件
+ */
+export function writeGlobalConfig(config: Record<string, string>): void {
+  ensureConfigDir();
+
+  // 构建配置文件头部
+  let content = `# Hecom CodeArts 全局配置文件`;
+
+  // 记录已写入的配置项
+  const writtenKeys = new Set<string>();
+
+  // 按分组写入配置
+  for (const group of CONFIG_GROUPS) {
+    content += `\n# ${group.title}\n`;
+    for (const key of group.keys) {
+      const value = config[key] || '';
+      content += `${key}=${value}\n`;
+      writtenKeys.add(key);
+    }
+  }
+
+  // 写入未分组的其他配置项（支持未来扩展）
+  const otherKeys = Object.keys(config).filter((key) => !writtenKeys.has(key));
+  if (otherKeys.length > 0) {
+    content += `\n# 其他配置\n`;
+    for (const key of otherKeys) {
+      const value = config[key] || '';
+      content += `${key}=${value}\n`;
+    }
+  }
+
+  try {
+    fs.writeFileSync(CONFIG_FILE, content, 'utf-8');
+  } catch (error) {
+    throw new Error(`写入全局配置文件失败: ${error}`);
+  }
+}
+
+/**
+ * 删除全局配置
+ */
+export function deleteGlobalConfig(): void {
+  if (globalConfigExists()) {
+    try {
+      fs.unlinkSync(CONFIG_FILE);
+    } catch (error) {
+      throw new Error(`删除全局配置文件失败: ${error}`);
+    }
+  }
+}
 
 // 加载全局配置
 const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
 
 export interface CliOptions {
-  projectId?: string;
   roleId?: string;
-  username?: string;
-  password?: string;
-  domain?: string;
-  region?: string;
-  iamEndpoint?: string;
-  codeartsUrl?: string;
 }
 
 export interface LoadedConfig {
@@ -22,21 +153,21 @@ export interface LoadedConfig {
 }
 
 /**
- * 加载配置，优先级：命令行参数 > 全局配置 > 默认值
+ * 加载配置，优先级：命令行参数 > 全局配置
  * @param cliOptions 命令行选项
  * @returns 加载的配置
  */
 export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
   // 命令行参数 > 全局配置
-  const projectId = cliOptions.projectId || globalConfig.PROJECT_ID;
+  const projectId = globalConfig.PROJECT_ID;
   const roleIdStr = cliOptions.roleId || globalConfig.ROLE_ID;
 
   if (!projectId) {
-    throw new Error('缺少必需参数: --project-id\n提示：运行 codearts config 创建配置');
+    throw new Error('缺少项目 ID');
   }
 
   if (!roleIdStr) {
-    throw new Error('缺少必需参数: --role-id\n提示：运行 codearts config 创建配置');
+    throw new Error('缺少角色 ID');
   }
 
   const roleIds = roleIdStr.split(',').map((id) => parseInt(id.trim()));
@@ -45,26 +176,21 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
     throw new Error('ROLE_ID 格式不正确，应为数字或逗号分隔的数字列表');
   }
 
-  const username = cliOptions.username || globalConfig.HUAWEI_CLOUD_USERNAME;
-  const password = cliOptions.password || globalConfig.HUAWEI_CLOUD_PASSWORD;
-  const domain = cliOptions.domain || globalConfig.HUAWEI_CLOUD_DOMAIN;
+  const username = globalConfig.HUAWEI_CLOUD_USERNAME;
+  const password = globalConfig.HUAWEI_CLOUD_PASSWORD;
+  const domain = globalConfig.HUAWEI_CLOUD_DOMAIN;
+  const iamEndpoint = globalConfig.HUAWEI_CLOUD_IAM_ENDPOINT;
+  const region = globalConfig.HUAWEI_CLOUD_REGION;
+  const endpoint = globalConfig.CODEARTS_BASE_URL;
 
-  if (!username || !password || !domain) {
-    throw new Error(
-      '缺少华为云认证信息: --username, --password, --domain\n提示：运行 codearts config 创建配置'
-    );
+  if (!username || !password || !domain || !iamEndpoint || !region || !endpoint) {
+    throw new Error('缺少华为云认证信息，请先运行 `npx @hecom/codearts config` 创建配置');
   }
 
   const config: HuaweiCloudConfig = {
-    iamEndpoint:
-      cliOptions.iamEndpoint ||
-      globalConfig.HUAWEI_CLOUD_IAM_ENDPOINT ||
-      'https://iam.cn-north-4.myhuaweicloud.com',
-    region: cliOptions.region || globalConfig.HUAWEI_CLOUD_REGION || 'cn-north-4',
-    endpoint:
-      cliOptions.codeartsUrl ||
-      globalConfig.CODEARTS_BASE_URL ||
-      'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
+    iamEndpoint,
+    region,
+    endpoint,
     username,
     password,
     domainName: domain,
@@ -75,81 +201,8 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
 
 /**
  * 获取最终合并后的配置（用于显示）
- * 优先级：命令行参数 > 全局配置 > 默认值
- * @param cliOptions 命令行选项
  * @returns 合并后的配置映射
  */
-export function getMergedConfig(cliOptions: CliOptions = {}): Record<string, string> {
-  const merged: Record<string, string> = {};
-
-  // 定义配置项及其来源
-  const configItems = [
-    {
-      key: 'HUAWEI_CLOUD_IAM_ENDPOINT',
-      cliKey: 'iamEndpoint',
-      default: 'https://iam.cn-north-4.myhuaweicloud.com',
-    },
-    {
-      key: 'HUAWEI_CLOUD_REGION',
-      cliKey: 'region',
-      default: 'cn-north-4',
-    },
-    {
-      key: 'HUAWEI_CLOUD_USERNAME',
-      cliKey: 'username',
-      default: '',
-    },
-    {
-      key: 'HUAWEI_CLOUD_PASSWORD',
-      cliKey: 'password',
-      default: '',
-    },
-    { key: 'HUAWEI_CLOUD_DOMAIN', cliKey: 'domain', default: '' },
-    {
-      key: 'CODEARTS_BASE_URL',
-      cliKey: 'codeartsUrl',
-      default: 'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
-    },
-    { key: 'PROJECT_ID', cliKey: 'projectId', default: '' },
-    { key: 'ROLE_ID', cliKey: 'roleId', default: '' },
-  ];
-
-  for (const item of configItems) {
-    const cliValue = cliOptions[item.cliKey as keyof CliOptions];
-    const globalValue = globalConfig[item.key];
-
-    merged[item.key] = cliValue || globalValue || item.default;
-  }
-
-  return merged;
-}
-
-/**
- * 获取配置来源信息
- * @param configKey 配置项的键名
- * @param cliOptions 命令行选项
- * @returns 配置来源描述
- */
-export function getConfigSource(configKey: string, cliOptions: CliOptions = {}): string {
-  const cliKeyMap: Record<string, keyof CliOptions> = {
-    HUAWEI_CLOUD_IAM_ENDPOINT: 'iamEndpoint',
-    HUAWEI_CLOUD_REGION: 'region',
-    HUAWEI_CLOUD_USERNAME: 'username',
-    HUAWEI_CLOUD_PASSWORD: 'password',
-    HUAWEI_CLOUD_DOMAIN: 'domain',
-    CODEARTS_BASE_URL: 'codeartsUrl',
-    PROJECT_ID: 'projectId',
-    ROLE_ID: 'roleId',
-  };
-
-  const cliKey = cliKeyMap[configKey];
-  if (cliKey && cliOptions[cliKey]) {
-    return '命令行参数';
-  }
-
-  if (globalConfig[configKey]) {
-    return '全局配置';
-  }
-
-  return '默认值';
+export function getConfig(): Record<string, string> {
+  return globalConfig;
 }

@@ -119,7 +119,7 @@ bin/
 
 负责配置合并逻辑：
 
-- 优先级：命令行参数 > 全局配置 > 默认值
+- 优先级：命令行参数 > 全局配置
 - 统一的配置加载接口
 - 类型安全的配置对象
 
@@ -342,7 +342,6 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 - 使用接口定义复杂参数（如查询参数、请求体）
 - 可选参数使用 `?` 标记
-- 提供合理的默认值
 
 ---
 
@@ -352,7 +351,9 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 项目使用全局配置文件，位于用户主目录：`~/.hecom-codearts/config.env`
 
-配置优先级：**命令行参数 > 全局配置 > 默认值**
+**使用前必须先运行 `codearts config` 进行配置。**
+
+配置优先级：**命令行参数 > 全局配置**
 
 ### 全局配置
 
@@ -392,7 +393,7 @@ ROLE_ID=1,2,3
 
 ### CLI 参数优先级
 
-配置加载优先级：**命令行参数 > 全局配置 > 默认值**
+配置加载优先级：**命令行参数 > 全局配置**
 
 支持的 CLI 参数：
 
@@ -413,7 +414,7 @@ import { readGlobalConfig, globalConfigExists } from './global-config';
 // 加载全局配置
 const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
 
-// 合并配置：命令行参数 > 全局配置 > 默认值
+// 合并配置：命令行参数 > 全局配置
 const projectId = cliOptions.projectId || globalConfig.PROJECT_ID;
 ```
 

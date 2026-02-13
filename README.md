@@ -75,16 +75,16 @@ codearts --help
 
 ### 配置项
 
-| 配置项                      | 说明                               | 必填 | 默认值                                               |
-| --------------------------- | ---------------------------------- | ---- | ---------------------------------------------------- |
-| `HUAWEI_CLOUD_IAM_ENDPOINT` | IAM 认证端点                       | 否   | `https://iam.cn-north-4.myhuaweicloud.com`           |
-| `HUAWEI_CLOUD_REGION`       | 华为云区域                         | 否   | `cn-north-4`                                         |
-| `HUAWEI_CLOUD_USERNAME`     | IAM 用户名                         | 是   | -                                                    |
-| `HUAWEI_CLOUD_PASSWORD`     | IAM 密码                           | 是   | -                                                    |
-| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名                       | 是   | -                                                    |
-| `CODEARTS_BASE_URL`         | CodeArts API 地址                  | 否   | `https://projectman-ext.cn-north-4.myhuaweicloud.cn` |
-| `PROJECT_ID`                | 项目 ID                            | 是   | -                                                    |
-| `ROLE_ID`                   | 角色 ID（支持逗号分隔，如: 1,2,3） | 是   | -                                                    |
+| 配置项                      | 说明                               | 必填 |
+| --------------------------- | ---------------------------------- | ---- |
+| `HUAWEI_CLOUD_IAM_ENDPOINT` | IAM 认证端点                       | 是   |
+| `HUAWEI_CLOUD_REGION`       | 华为云区域                         | 是   |
+| `HUAWEI_CLOUD_USERNAME`     | IAM 用户名                         | 是   |
+| `HUAWEI_CLOUD_PASSWORD`     | IAM 密码                           | 是   |
+| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名                       | 是   |
+| `CODEARTS_BASE_URL`         | CodeArts API 地址                  | 是   |
+| `PROJECT_ID`                | 项目 ID                            | 是   |
+| `ROLE_ID`                   | 角色 ID（支持逗号分隔，如: 1,2,3） | 是   |
 
 ---
 

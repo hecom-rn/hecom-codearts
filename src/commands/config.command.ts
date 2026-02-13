@@ -1,13 +1,13 @@
 import inquirer from 'inquirer';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
-import { CliOptions, getConfigSource, getMergedConfig } from '../utils/config-loader';
 import {
+  getConfig,
   getGlobalConfigPath,
   globalConfigExists,
   readGlobalConfig,
   writeGlobalConfig,
-} from '../utils/global-config';
+} from '../utils/config-loader';
 
 /**
  * 清除终端上指定行数的内容
@@ -177,12 +177,14 @@ export async function configCommand(): Promise<void> {
         message: 'IAM 认证端点:',
         default:
           existingConfig.HUAWEI_CLOUD_IAM_ENDPOINT || 'https://iam.cn-north-4.myhuaweicloud.com',
+        validate: (input: string) => (input.trim() ? true : 'IAM 认证端点不能为空'),
       },
       {
         type: 'input',
         name: 'region',
         message: '华为云区域:',
         default: existingConfig.HUAWEI_CLOUD_REGION || 'cn-north-4',
+        validate: (input: string) => (input.trim() ? true : '华为云区域不能为空'),
       },
       {
         type: 'input',
@@ -190,6 +192,7 @@ export async function configCommand(): Promise<void> {
         message: 'CodeArts API 地址:',
         default:
           existingConfig.CODEARTS_BASE_URL || 'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
+        validate: (input: string) => (input.trim() ? true : 'CodeArts API 地址不能为空'),
       },
       {
         type: 'input',
@@ -350,7 +353,7 @@ export async function configCommand(): Promise<void> {
 export async function updateProjectConfigCommand(configKey: string): Promise<void> {
   // 检查配置文件是否存在
   if (!globalConfigExists()) {
-    console.error('\n❌ 全局配置文件不存在，请先运行 `codearts config` 创建配置。');
+    console.error('\n❌ 全局配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
     process.exit(1);
   }
 
@@ -370,22 +373,20 @@ export async function updateProjectConfigCommand(configKey: string): Promise<voi
 
   // 检查必要的配置是否存在
   if (!existingConfig.HUAWEI_CLOUD_USERNAME || !existingConfig.HUAWEI_CLOUD_PASSWORD) {
-    console.error('\n❌ 全局配置不完整，请先运行 `codearts config` 完成配置。');
+    console.error('\n❌ 全局配置不完整，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
   if (!existingConfig.PROJECT_ID) {
-    console.error('\n❌ 项目 ID 未配置，请先运行 `codearts config` 完成配置。');
+    console.error('\n❌ 项目 ID 未配置，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
   // 创建 BusinessService 实例
   const businessService = new BusinessService({
-    iamEndpoint:
-      existingConfig.HUAWEI_CLOUD_IAM_ENDPOINT || 'https://iam.cn-north-4.myhuaweicloud.com',
-    region: existingConfig.HUAWEI_CLOUD_REGION || 'cn-north-4',
-    endpoint:
-      existingConfig.CODEARTS_BASE_URL || 'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
+    iamEndpoint: existingConfig.HUAWEI_CLOUD_IAM_ENDPOINT,
+    region: existingConfig.HUAWEI_CLOUD_REGION,
+    endpoint: existingConfig.CODEARTS_BASE_URL,
     username: existingConfig.HUAWEI_CLOUD_USERNAME,
     password: existingConfig.HUAWEI_CLOUD_PASSWORD,
     domainName: existingConfig.HUAWEI_CLOUD_DOMAIN,
@@ -424,12 +425,11 @@ export function getAvailableProjectConfigs(): ProjectConfigItem[] {
 
 /**
  * 显示当前配置
- * 显示最终合并后的配置信息（包含配置来源）
- * @param cliOptions 命令行选项
+ *
  */
-export async function showConfigCommand(cliOptions: CliOptions = {}): Promise<void> {
+export async function showConfigCommand(): Promise<void> {
   // 获取最终合并后的配置
-  const mergedConfig = getMergedConfig(cliOptions);
+  const config = getConfig();
 
   // 按类别显示配置
   console.log('\n【华为云 IAM 凭证】');
@@ -441,40 +441,17 @@ export async function showConfigCommand(cliOptions: CliOptions = {}): Promise<vo
     'HUAWEI_CLOUD_DOMAIN',
   ];
   for (const key of iamKeys) {
-    const value = mergedConfig[key] || '(未配置)';
+    const value = config[key] || '(未配置)';
     const displayValue = key.includes('PASSWORD') && value !== '(未配置)' ? '********' : value;
-    const source = value !== '(未配置)' ? getConfigSource(key, cliOptions) : '';
-    const sourceInfo = source ? ` [来源: ${source}]` : '';
-    console.log(`  ${formatKeyName(key)}: ${displayValue}${sourceInfo}`);
+    console.log(`  ${formatKeyName(key)}: ${displayValue}`);
   }
 
   console.log('\n【CodeArts 配置】');
   const codeartsKeys = ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'];
   for (const key of codeartsKeys) {
-    const value = mergedConfig[key] || '(未配置)';
-    const source = value !== '(未配置)' ? getConfigSource(key, cliOptions) : '';
-    const sourceInfo = source ? ` [来源: ${source}]` : '';
-    console.log(`  ${formatKeyName(key)}: ${value}${sourceInfo}`);
+    const value = config[key] || '(未配置)';
+    console.log(`  ${formatKeyName(key)}: ${value}`);
   }
-
-  // 显示配置文件位置
-  console.log('\n【配置文件位置】');
-  if (globalConfigExists()) {
-    console.log(`  全局配置: ${getGlobalConfigPath()}`);
-  } else {
-    console.log(`  全局配置: (不存在)`);
-  }
-
-  // 显示配置优先级说明
-  console.log('\n【配置加载优先级】');
-  console.log('  命令行参数 > 全局配置 > 默认值');
-
-  // 提示
-  if (!globalConfigExists()) {
-    console.log('\n💡 提示: 未检测到全局配置文件，建议运行 `codearts config` 创建配置');
-  }
-
-  console.log('');
 }
 
 /**

@@ -11,7 +11,7 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
-import { globalConfigExists } from '../utils/global-config';
+import { globalConfigExists } from '../utils/config-loader';
 
 // 读取 package.json 中的版本号
 const packageJsonPath = path.join(__dirname, '../../package.json');
@@ -38,8 +38,7 @@ configCmd
   .command('show')
   .description('显示当前配置信息')
   .action(async () => {
-    const opts = program.opts();
-    await showConfigCommand(opts);
+    await showConfigCommand();
   });
 
 // 为每个项目配置项添加子命令
@@ -57,7 +56,7 @@ availableConfigs.forEach((configItem) => {
 // daily 命令
 program
   .command('daily [date]')
-  .description('生成日报统计\n\n示例:\n  $ codearts daily\n  $ codearts daily 2026-01-15\n')
+  .description('生成日报统计')
   .action(async (date) => {
     const opts = program.opts();
     await dailyCommand(date, opts);
@@ -66,7 +65,7 @@ program
 // work-hour 命令
 program
   .command('work-hour [year]')
-  .description('生成年度工时统计\n\n示例:\n  $ codearts work-hour\n  $ codearts work-hour 2025\n')
+  .description('生成年度工时统计')
   .action(async (year) => {
     const opts = program.opts();
     await workHourCommand(year, opts);
@@ -75,9 +74,7 @@ program
 // bug-rate 命令
 program
   .command('bug-rate <iterations>')
-  .description(
-    '按迭代统计产品缺陷率，支持多个迭代（逗号分隔）\n\n示例:\n  $ codearts bug-rate "迭代1,迭代2"\n'
-  )
+  .description('按迭代统计产品缺陷率，支持多个迭代（逗号分隔）')
   .action(async (iterations) => {
     const opts = program.opts();
     await bugCommand(iterations, opts);

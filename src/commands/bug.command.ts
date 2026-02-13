@@ -203,9 +203,7 @@ export async function bugCommand(
 ): Promise<void> {
   try {
     if (!iterationTitlesStr || iterationTitlesStr.trim() === '') {
-      throw new Error(
-        '请指定至少一个迭代标题\n示例: codearts bug "迭代1,迭代2" 或 "迭代1 迭代2" 或 "迭代1;迭代2"'
-      );
+      throw new Error('请指定至少一个迭代标题');
     }
 
     // 解析迭代标题（支持多种分隔符：逗号、分号、空格、竖线、顿号等）
