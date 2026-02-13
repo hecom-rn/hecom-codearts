@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
+import { ConfigKey, PartialConfigMap } from '../types';
 import {
   getConfig,
   getGlobalConfigPath,
@@ -24,7 +25,7 @@ function clearLines(lines: number): void {
  * 第三阶段项目配置的配置项定义
  */
 interface ProjectConfigItem {
-  key: string; // 配置项的键名（用于存储）
+  key: ConfigKey; // 配置项的键名（使用枚举）
   label: string; // 配置项的显示名称
   configure: (
     businessService: BusinessService,
@@ -117,13 +118,13 @@ async function configureRoleIds(
  */
 const PROJECT_CONFIG_ITEMS: ProjectConfigItem[] = [
   {
-    key: 'ROLE_ID',
+    key: ConfigKey.ROLE_ID,
     label: '角色配置',
     configure: configureRoleIds,
   },
   // 未来可以在这里添加更多配置项，例如：
   // {
-  //   key: 'CUSTOM_FIELD',
+  //   key: ConfigKey.CUSTOM_FIELD,
   //   label: '自定义字段配置',
   //   configure: configureCustomField,
   // },
@@ -176,14 +177,15 @@ export async function configCommand(): Promise<void> {
         name: 'iamEndpoint',
         message: 'IAM 认证端点:',
         default:
-          existingConfig.HUAWEI_CLOUD_IAM_ENDPOINT || 'https://iam.cn-north-4.myhuaweicloud.com',
+          existingConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT] ||
+          'https://iam.cn-north-4.myhuaweicloud.com',
         validate: (input: string) => (input.trim() ? true : 'IAM 认证端点不能为空'),
       },
       {
         type: 'input',
         name: 'region',
         message: '华为云区域:',
-        default: existingConfig.HUAWEI_CLOUD_REGION || 'cn-north-4',
+        default: existingConfig[ConfigKey.HUAWEI_CLOUD_REGION] || 'cn-north-4',
         validate: (input: string) => (input.trim() ? true : '华为云区域不能为空'),
       },
       {
@@ -191,21 +193,22 @@ export async function configCommand(): Promise<void> {
         name: 'codeartsUrl',
         message: 'CodeArts API 地址:',
         default:
-          existingConfig.CODEARTS_BASE_URL || 'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
+          existingConfig[ConfigKey.CODEARTS_BASE_URL] ||
+          'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
         validate: (input: string) => (input.trim() ? true : 'CodeArts API 地址不能为空'),
       },
       {
         type: 'input',
         name: 'domain',
         message: '华为云账号名:',
-        default: existingConfig.HUAWEI_CLOUD_DOMAIN || '',
+        default: existingConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN] || '',
         validate: (input: string) => (input.trim() ? true : '华为云账号名不能为空'),
       },
       {
         type: 'input',
         name: 'username',
         message: 'IAM 用户名:',
-        default: existingConfig.HUAWEI_CLOUD_USERNAME || '',
+        default: existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME] || '',
         validate: (input: string) => (input.trim() ? true : 'IAM 用户名不能为空'),
       },
       {
@@ -213,7 +216,7 @@ export async function configCommand(): Promise<void> {
         name: 'password',
         message: 'IAM 密码:',
         mask: '*',
-        default: existingConfig.HUAWEI_CLOUD_PASSWORD || '',
+        default: existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD] || '',
         validate: (input: string) => (input.trim() ? true : 'IAM 密码不能为空'),
       },
     ]);
@@ -272,7 +275,7 @@ export async function configCommand(): Promise<void> {
           type: 'input',
           name: 'manualProjectId',
           message: '项目 ID:',
-          default: existingConfig.PROJECT_ID || '',
+          default: existingConfig[ConfigKey.PROJECT_ID] || '',
           validate: (input: string) => (input.trim() ? true : '项目 ID 不能为空'),
         },
       ]);
@@ -289,7 +292,7 @@ export async function configCommand(): Promise<void> {
           name: 'selectedProjectId',
           message: '请选择项目:',
           choices: projectChoices,
-          default: existingConfig.PROJECT_ID || projectChoices[0]?.value,
+          default: existingConfig[ConfigKey.PROJECT_ID] || projectChoices[0]?.value,
         },
       ]);
       projectId = selectedProjectId;
@@ -304,7 +307,7 @@ export async function configCommand(): Promise<void> {
         type: 'input',
         name: 'manualProjectId',
         message: '项目 ID:',
-        default: existingConfig.PROJECT_ID || '',
+        default: existingConfig[ConfigKey.PROJECT_ID] || '',
         validate: (input: string) => (input.trim() ? true : '项目 ID 不能为空'),
       },
     ]);
@@ -312,7 +315,7 @@ export async function configCommand(): Promise<void> {
   }
 
   // 第三阶段：配置项目相关配置
-  const projectConfigs: Record<string, string> = {};
+  const projectConfigs: PartialConfigMap = {};
 
   for (const configItem of PROJECT_CONFIG_ITEMS) {
     const value = await configItem.configure(
@@ -324,14 +327,14 @@ export async function configCommand(): Promise<void> {
   }
 
   // 合并所有配置（转换为标准环境变量名）
-  const finalConfig = {
-    HUAWEI_CLOUD_IAM_ENDPOINT: iamAnswers.iamEndpoint,
-    HUAWEI_CLOUD_REGION: iamAnswers.region,
-    CODEARTS_BASE_URL: iamAnswers.codeartsUrl,
-    HUAWEI_CLOUD_DOMAIN: iamAnswers.domain,
-    HUAWEI_CLOUD_USERNAME: iamAnswers.username,
-    HUAWEI_CLOUD_PASSWORD: iamAnswers.password,
-    PROJECT_ID: projectId,
+  const finalConfig: PartialConfigMap = {
+    [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]: iamAnswers.iamEndpoint,
+    [ConfigKey.HUAWEI_CLOUD_REGION]: iamAnswers.region,
+    [ConfigKey.CODEARTS_BASE_URL]: iamAnswers.codeartsUrl,
+    [ConfigKey.HUAWEI_CLOUD_DOMAIN]: iamAnswers.domain,
+    [ConfigKey.HUAWEI_CLOUD_USERNAME]: iamAnswers.username,
+    [ConfigKey.HUAWEI_CLOUD_PASSWORD]: iamAnswers.password,
+    [ConfigKey.PROJECT_ID]: projectId,
     ...projectConfigs,
   };
 
@@ -348,9 +351,9 @@ export async function configCommand(): Promise<void> {
 
 /**
  * 单独更新某个项目配置项
- * @param configKey 配置项的键名（例如 'ROLE_ID'）
+ * @param configKey 配置项的键名（例如 ConfigKey.ROLE_ID）
  */
-export async function updateProjectConfigCommand(configKey: string): Promise<void> {
+export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<void> {
   // 检查配置文件是否存在
   if (!globalConfigExists()) {
     console.error('\n❌ 全局配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
@@ -372,36 +375,39 @@ export async function updateProjectConfigCommand(configKey: string): Promise<voi
   const existingConfig = readGlobalConfig();
 
   // 检查必要的配置是否存在
-  if (!existingConfig.HUAWEI_CLOUD_USERNAME || !existingConfig.HUAWEI_CLOUD_PASSWORD) {
+  if (
+    !existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME] ||
+    !existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]
+  ) {
     console.error('\n❌ 全局配置不完整，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
-  if (!existingConfig.PROJECT_ID) {
+  if (!existingConfig[ConfigKey.PROJECT_ID]) {
     console.error('\n❌ 项目 ID 未配置，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
   // 创建 BusinessService 实例
   const businessService = new BusinessService({
-    iamEndpoint: existingConfig.HUAWEI_CLOUD_IAM_ENDPOINT,
-    region: existingConfig.HUAWEI_CLOUD_REGION,
-    endpoint: existingConfig.CODEARTS_BASE_URL,
-    username: existingConfig.HUAWEI_CLOUD_USERNAME,
-    password: existingConfig.HUAWEI_CLOUD_PASSWORD,
-    domainName: existingConfig.HUAWEI_CLOUD_DOMAIN,
+    iamEndpoint: existingConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]!,
+    region: existingConfig[ConfigKey.HUAWEI_CLOUD_REGION]!,
+    endpoint: existingConfig[ConfigKey.CODEARTS_BASE_URL]!,
+    username: existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME]!,
+    password: existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]!,
+    domainName: existingConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN]!,
     enableLogging: false,
   });
 
   // 执行配置
   const newValue = await configItem.configure(
     businessService,
-    existingConfig.PROJECT_ID,
+    existingConfig[ConfigKey.PROJECT_ID]!,
     existingConfig[configKey]
   );
 
   // 更新配置
-  const updatedConfig = {
+  const updatedConfig: PartialConfigMap = {
     ...existingConfig,
     [configKey]: newValue,
   };
@@ -433,12 +439,12 @@ export async function showConfigCommand(): Promise<void> {
 
   // 按类别显示配置
   console.log('\n【华为云 IAM 凭证】');
-  const iamKeys = [
-    'HUAWEI_CLOUD_IAM_ENDPOINT',
-    'HUAWEI_CLOUD_REGION',
-    'HUAWEI_CLOUD_USERNAME',
-    'HUAWEI_CLOUD_PASSWORD',
-    'HUAWEI_CLOUD_DOMAIN',
+  const iamKeys: ConfigKey[] = [
+    ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT,
+    ConfigKey.HUAWEI_CLOUD_REGION,
+    ConfigKey.HUAWEI_CLOUD_USERNAME,
+    ConfigKey.HUAWEI_CLOUD_PASSWORD,
+    ConfigKey.HUAWEI_CLOUD_DOMAIN,
   ];
   for (const key of iamKeys) {
     const value = config[key] || '(未配置)';
@@ -447,7 +453,11 @@ export async function showConfigCommand(): Promise<void> {
   }
 
   console.log('\n【CodeArts 配置】');
-  const codeartsKeys = ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'];
+  const codeartsKeys: ConfigKey[] = [
+    ConfigKey.CODEARTS_BASE_URL,
+    ConfigKey.PROJECT_ID,
+    ConfigKey.ROLE_ID,
+  ];
   for (const key of codeartsKeys) {
     const value = config[key] || '(未配置)';
     console.log(`  ${formatKeyName(key)}: ${value}`);
@@ -457,16 +467,16 @@ export async function showConfigCommand(): Promise<void> {
 /**
  * 格式化配置项名称（用于显示）
  */
-function formatKeyName(key: string): string {
-  const nameMap: Record<string, string> = {
-    HUAWEI_CLOUD_IAM_ENDPOINT: 'IAM 认证端点',
-    HUAWEI_CLOUD_REGION: '华为云区域',
-    HUAWEI_CLOUD_USERNAME: 'IAM 用户名',
-    HUAWEI_CLOUD_PASSWORD: 'IAM 密码',
-    HUAWEI_CLOUD_DOMAIN: '华为云账号名',
-    CODEARTS_BASE_URL: 'CodeArts API 地址',
-    PROJECT_ID: '项目 ID',
-    ROLE_ID: '角色 ID',
+function formatKeyName(key: ConfigKey): string {
+  const nameMap: Record<ConfigKey, string> = {
+    [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]: 'IAM 认证端点',
+    [ConfigKey.HUAWEI_CLOUD_REGION]: '华为云区域',
+    [ConfigKey.HUAWEI_CLOUD_USERNAME]: 'IAM 用户名',
+    [ConfigKey.HUAWEI_CLOUD_PASSWORD]: 'IAM 密码',
+    [ConfigKey.HUAWEI_CLOUD_DOMAIN]: '华为云账号名',
+    [ConfigKey.CODEARTS_BASE_URL]: 'CodeArts API 地址',
+    [ConfigKey.PROJECT_ID]: '项目 ID',
+    [ConfigKey.ROLE_ID]: '角色 ID',
   };
   return nameMap[key] || key;
 }

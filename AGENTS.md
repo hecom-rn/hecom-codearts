@@ -355,6 +355,50 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 配置优先级：**命令行参数 > 全局配置**
 
+### 配置键枚举（ConfigKey）
+
+为保证类型安全，所有配置项的键名使用 `ConfigKey` 枚举定义（`src/types/index.ts`）：
+
+```typescript
+export enum ConfigKey {
+  // 不可变配置（只能通过 config 命令设置）
+  HUAWEI_CLOUD_IAM_ENDPOINT = 'HUAWEI_CLOUD_IAM_ENDPOINT',
+  HUAWEI_CLOUD_REGION = 'HUAWEI_CLOUD_REGION',
+  HUAWEI_CLOUD_USERNAME = 'HUAWEI_CLOUD_USERNAME',
+  HUAWEI_CLOUD_PASSWORD = 'HUAWEI_CLOUD_PASSWORD',
+  HUAWEI_CLOUD_DOMAIN = 'HUAWEI_CLOUD_DOMAIN',
+  CODEARTS_BASE_URL = 'CODEARTS_BASE_URL',
+  PROJECT_ID = 'PROJECT_ID',
+
+  // 可变配置（可以通过命令行参数覆盖）
+  ROLE_ID = 'ROLE_ID',
+}
+```
+
+#### 配置分类
+
+1. **不可变配置（Immutable Config）**：只能通过 `codearts config` 命令设置
+   - IAM 认证相关：`HUAWEI_CLOUD_IAM_ENDPOINT`, `HUAWEI_CLOUD_REGION`, `HUAWEI_CLOUD_USERNAME`, `HUAWEI_CLOUD_PASSWORD`, `HUAWEI_CLOUD_DOMAIN`
+   - CodeArts 基础配置：`CODEARTS_BASE_URL`, `PROJECT_ID`
+
+2. **可变配置（Mutable Config）**：可以通过命令行参数覆盖
+   - `ROLE_ID`：角色 ID（支持逗号分隔的多个角色）
+
+#### 类型安全的配置访问
+
+使用枚举访问配置，避免字符串拼写错误：
+
+```typescript
+import { ConfigKey, PartialConfigMap } from '../types';
+
+// ✅ 正确：使用枚举
+const projectId = config[ConfigKey.PROJECT_ID];
+const roleId = config[ConfigKey.ROLE_ID];
+
+// ❌ 错误：不要使用字符串字面量
+const projectId = config['PROJECT_ID']; // 类型错误
+```
+
 ### 全局配置
 
 使用 `codearts config` 创建全局配置：
@@ -395,27 +439,24 @@ ROLE_ID=1,2,3
 
 配置加载优先级：**命令行参数 > 全局配置**
 
-支持的 CLI 参数：
+目前支持的 CLI 参数：
 
-- `--project-id <id>`: 项目 ID
 - `--role-id <ids>`: 角色 ID（支持逗号分隔）
-- `--username <username>`: IAM 用户名
-- `--password <password>`: IAM 密码
-- `--domain <domain>`: 华为云账号名
-- `--region <region>`: 华为云区域
-- `--iam-endpoint <url>`: IAM 认证端点
-- `--codearts-url <url>`: CodeArts API 地址
 
-配置加载实现：
+**注意**：只有可变配置才能通过 CLI 参数覆盖。不可变配置必须通过 `codearts config` 命令设置。
+
+配置加载实现示例：
 
 ```typescript
-import { readGlobalConfig, globalConfigExists } from './global-config';
+import { ConfigKey, PartialConfigMap } from '../types';
+import { readGlobalConfig, globalConfigExists } from './config-loader';
 
 // 加载全局配置
 const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
 
 // 合并配置：命令行参数 > 全局配置
-const projectId = cliOptions.projectId || globalConfig.PROJECT_ID;
+const projectId = globalConfig[ConfigKey.PROJECT_ID];
+const roleIdStr = cliOptions.roleId || globalConfig[ConfigKey.ROLE_ID];
 ```
 
 ---

@@ -609,3 +609,58 @@ export interface AllWorkHourStats {
   totalEntries: number;
   userStats: UserAllWorkHourStats[];
 }
+
+/**
+ * 配置键枚举
+ * 用于类型安全的配置项访问
+ */
+export enum ConfigKey {
+  // 不可变配置（只能通过 config 命令设置）
+  HUAWEI_CLOUD_IAM_ENDPOINT = 'HUAWEI_CLOUD_IAM_ENDPOINT',
+  HUAWEI_CLOUD_REGION = 'HUAWEI_CLOUD_REGION',
+  HUAWEI_CLOUD_USERNAME = 'HUAWEI_CLOUD_USERNAME',
+  HUAWEI_CLOUD_PASSWORD = 'HUAWEI_CLOUD_PASSWORD',
+  HUAWEI_CLOUD_DOMAIN = 'HUAWEI_CLOUD_DOMAIN',
+  CODEARTS_BASE_URL = 'CODEARTS_BASE_URL',
+  PROJECT_ID = 'PROJECT_ID',
+
+  // 可变配置（可以通过命令行参数覆盖）
+  ROLE_ID = 'ROLE_ID',
+}
+
+/**
+ * 不可变配置键（只能通过 config 命令设置）
+ */
+export const IMMUTABLE_CONFIG_KEYS: ConfigKey[] = [
+  ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT,
+  ConfigKey.HUAWEI_CLOUD_REGION,
+  ConfigKey.HUAWEI_CLOUD_USERNAME,
+  ConfigKey.HUAWEI_CLOUD_PASSWORD,
+  ConfigKey.HUAWEI_CLOUD_DOMAIN,
+  ConfigKey.CODEARTS_BASE_URL,
+  ConfigKey.PROJECT_ID,
+];
+
+/**
+ * 可变配置键（可以通过命令行参数覆盖）
+ */
+export const MUTABLE_CONFIG_KEYS: ConfigKey[] = [ConfigKey.ROLE_ID];
+
+/**
+ * 类型安全的配置映射
+ */
+export type ConfigMap = {
+  [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]: string;
+  [ConfigKey.HUAWEI_CLOUD_REGION]: string;
+  [ConfigKey.HUAWEI_CLOUD_USERNAME]: string;
+  [ConfigKey.HUAWEI_CLOUD_PASSWORD]: string;
+  [ConfigKey.HUAWEI_CLOUD_DOMAIN]: string;
+  [ConfigKey.CODEARTS_BASE_URL]: string;
+  [ConfigKey.PROJECT_ID]: string;
+  [ConfigKey.ROLE_ID]: string;
+};
+
+/**
+ * 部分配置映射（用于读取配置文件）
+ */
+export type PartialConfigMap = Partial<ConfigMap>;

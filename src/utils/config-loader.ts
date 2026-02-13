@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { HuaweiCloudConfig } from '../types';
+import { ConfigKey, HuaweiCloudConfig, PartialConfigMap } from '../types';
 
 /**
  * 全局配置管理工具
@@ -37,7 +37,7 @@ export function globalConfigExists(): boolean {
 /**
  * 读取全局配置
  */
-export function readGlobalConfig(): Record<string, string> {
+export function readGlobalConfig(): PartialConfigMap {
   if (!globalConfigExists()) {
     return {};
   }
@@ -58,14 +58,17 @@ export function readGlobalConfig(): Record<string, string> {
       if (equalIndex > 0) {
         const key = trimmedLine.substring(0, equalIndex).trim();
         const value = trimmedLine.substring(equalIndex + 1).trim();
-        config[key] = value;
+        // 只保存合法的配置键
+        if (Object.values(ConfigKey).includes(key as ConfigKey)) {
+          config[key] = value;
+        }
       }
     }
   } catch (error) {
     console.error('读取全局配置文件失败:', error);
   }
 
-  return config;
+  return config as PartialConfigMap;
 }
 
 /**
@@ -74,15 +77,19 @@ export function readGlobalConfig(): Record<string, string> {
 const CONFIG_GROUPS = [
   {
     title: '华为云IAM认证端点（根据区域调整）',
-    keys: ['HUAWEI_CLOUD_IAM_ENDPOINT', 'HUAWEI_CLOUD_REGION'],
+    keys: [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT, ConfigKey.HUAWEI_CLOUD_REGION],
   },
   {
     title: 'IAM用户凭证',
-    keys: ['HUAWEI_CLOUD_USERNAME', 'HUAWEI_CLOUD_PASSWORD', 'HUAWEI_CLOUD_DOMAIN'],
+    keys: [
+      ConfigKey.HUAWEI_CLOUD_USERNAME,
+      ConfigKey.HUAWEI_CLOUD_PASSWORD,
+      ConfigKey.HUAWEI_CLOUD_DOMAIN,
+    ],
   },
   {
     title: '项目配置',
-    keys: ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'],
+    keys: [ConfigKey.CODEARTS_BASE_URL, ConfigKey.PROJECT_ID, ConfigKey.ROLE_ID],
   },
 ];
 
@@ -90,14 +97,14 @@ const CONFIG_GROUPS = [
  * 写入全局配置
  * 支持动态配置项，自动按分组组织配置文件
  */
-export function writeGlobalConfig(config: Record<string, string>): void {
+export function writeGlobalConfig(config: PartialConfigMap): void {
   ensureConfigDir();
 
   // 构建配置文件头部
   let content = `# Hecom CodeArts 全局配置文件`;
 
   // 记录已写入的配置项
-  const writtenKeys = new Set<string>();
+  const writtenKeys = new Set<ConfigKey>();
 
   // 按分组写入配置
   for (const group of CONFIG_GROUPS) {
@@ -110,7 +117,7 @@ export function writeGlobalConfig(config: Record<string, string>): void {
   }
 
   // 写入未分组的其他配置项（支持未来扩展）
-  const otherKeys = Object.keys(config).filter((key) => !writtenKeys.has(key));
+  const otherKeys = (Object.keys(config) as ConfigKey[]).filter((key) => !writtenKeys.has(key));
   if (otherKeys.length > 0) {
     content += `\n# 其他配置\n`;
     for (const key of otherKeys) {
@@ -159,8 +166,8 @@ export interface LoadedConfig {
  */
 export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
   // 命令行参数 > 全局配置
-  const projectId = globalConfig.PROJECT_ID;
-  const roleIdStr = cliOptions.roleId || globalConfig.ROLE_ID;
+  const projectId = globalConfig[ConfigKey.PROJECT_ID];
+  const roleIdStr = cliOptions.roleId || globalConfig[ConfigKey.ROLE_ID];
 
   if (!projectId) {
     throw new Error('缺少项目 ID');
@@ -176,12 +183,12 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
     throw new Error('ROLE_ID 格式不正确，应为数字或逗号分隔的数字列表');
   }
 
-  const username = globalConfig.HUAWEI_CLOUD_USERNAME;
-  const password = globalConfig.HUAWEI_CLOUD_PASSWORD;
-  const domain = globalConfig.HUAWEI_CLOUD_DOMAIN;
-  const iamEndpoint = globalConfig.HUAWEI_CLOUD_IAM_ENDPOINT;
-  const region = globalConfig.HUAWEI_CLOUD_REGION;
-  const endpoint = globalConfig.CODEARTS_BASE_URL;
+  const username = globalConfig[ConfigKey.HUAWEI_CLOUD_USERNAME];
+  const password = globalConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD];
+  const domain = globalConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN];
+  const iamEndpoint = globalConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT];
+  const region = globalConfig[ConfigKey.HUAWEI_CLOUD_REGION];
+  const endpoint = globalConfig[ConfigKey.CODEARTS_BASE_URL];
 
   if (!username || !password || !domain || !iamEndpoint || !region || !endpoint) {
     throw new Error('缺少华为云认证信息，请先运行 `npx @hecom/codearts config` 创建配置');
@@ -203,6 +210,6 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
  * 获取最终合并后的配置（用于显示）
  * @returns 合并后的配置映射
  */
-export function getConfig(): Record<string, string> {
+export function getConfig(): PartialConfigMap {
   return globalConfig;
 }
