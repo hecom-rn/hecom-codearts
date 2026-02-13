@@ -113,13 +113,13 @@ bin/
 - `daily.command.ts`: 日报统计命令实现
 - `work-hour.command.ts`: 年度工时统计命令实现
 - `bug.command.ts`: 产品缺陷率统计命令逻辑
-- 命令函数接收可选参数，支持通过环境变量和 CLI 参数配置
+- 命令函数接收可选参数，支持通过全局配置和 CLI 参数配置
 
 #### 配置加载层（src/utils/config-loader.ts）
 
 负责配置合并逻辑：
 
-- 优先级：命令行参数 > 环境变量 > 默认值
+- 优先级：命令行参数 > 全局配置 > 默认值
 - 统一的配置加载接口
 - 类型安全的配置对象
 
@@ -130,11 +130,12 @@ bin/
 ### 关键文件说明
 
 - **`src/bin/cli.ts`**: CLI 入口，使用 Commander.js 定义命令和选项
-- **`src/commands/config.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建 .env 文件
+- **`src/commands/config.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建全局配置文件
 - **`src/commands/daily.command.ts`**: 日报统计核心逻辑（从 daily.ts 提取）
 - **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
 - **`src/commands/bug.command.ts`**: 产品缺陷率统计命令逻辑
-- **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和环境变量
+- **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和全局配置
+- **`src/utils/global-config.ts`**: 全局配置文件管理（读取、写入、删除）
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
 - **`src/config/holidays.ts`**: 节假日配置与判断逻辑，用于计算年度应计工作日
@@ -147,7 +148,7 @@ bin/
 
 ### 4.1 Import 导入顺序
 
-- 第三方库导入（如 axios, dotenv）
+- 第三方库导入（如 axios, inquirer）
 - 项目内部模块导入（使用相对路径）
 - 类型导入可与模块导入合并
 
@@ -155,7 +156,6 @@ bin/
 
 ```typescript
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import dotenv from 'dotenv';
 import { ApiService } from './services/api.service';
 import { HuaweiCloudConfig, WorkHour } from './types';
 ```
@@ -350,11 +350,9 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ### 配置方式
 
-项目支持三种配置方式，优先级从高到低：
+项目使用全局配置文件，位于用户主目录：`~/.hecom-codearts/config.env`
 
-1. **命令行参数** - 运行时指定，最高优先级
-2. **当前目录 .env 文件** - 项目级配置
-3. **全局配置文件** - 用户级配置（`~/.hecom-codearts/config.env`）
+配置优先级：**命令行参数 > 全局配置 > 默认值**
 
 ### 全局配置
 
@@ -379,20 +377,6 @@ PROJECT_ID=your-project-id
 ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 ```
 
-### 项目级配置
-
-在项目目录创建 `.env` 文件：
-
-```bash
-cp .env.example .env
-# 编辑 .env 文件
-```
-
-项目级配置优先级高于全局配置，适用于：
-
-- 团队协作，不同项目使用不同配置
-- 需要版本控制的配置（记得加密敏感信息）
-
 ### 多角色支持
 
 `ROLE_ID` 支持多个角色ID，使用逗号分隔：
@@ -408,7 +392,7 @@ ROLE_ID=1,2,3
 
 ### CLI 参数优先级
 
-配置加载优先级：**命令行参数 > 当前目录 .env > 全局配置 > 默认值**
+配置加载优先级：**命令行参数 > 全局配置 > 默认值**
 
 支持的 CLI 参数：
 
@@ -424,24 +408,20 @@ ROLE_ID=1,2,3
 配置加载实现：
 
 ```typescript
-import dotenv from 'dotenv';
 import { readGlobalConfig, globalConfigExists } from './global-config';
-
-// 加载当前目录的 .env 文件
-dotenv.config();
 
 // 加载全局配置
 const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
 
-// 合并配置：命令行参数 > 当前目录 .env > 全局配置 > 默认值
-const projectId = cliOptions.projectId || process.env.PROJECT_ID || globalConfig.PROJECT_ID;
+// 合并配置：命令行参数 > 全局配置 > 默认值
+const projectId = cliOptions.projectId || globalConfig.PROJECT_ID;
 ```
 
 ---
 
 ## 10. 编码最佳实践
 
-1. **不要硬编码**: 使用环境变量或配置文件
+1. **不要硬编码**: 使用全局配置文件
 2. **避免重复代码**: 提取公共逻辑到独立函数
 3. **保持函数简洁**: 单个函数不超过 50 行（建议）
 4. **使用解构赋值**: 简化对象和数组操作

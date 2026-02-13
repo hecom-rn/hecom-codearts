@@ -1,15 +1,13 @@
 import inquirer from 'inquirer';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
+import { CliOptions, getConfigSource, getMergedConfig } from '../utils/config-loader';
 import {
   getGlobalConfigPath,
   globalConfigExists,
   readGlobalConfig,
   writeGlobalConfig,
 } from '../utils/global-config';
-import { getMergedConfig, getConfigSource, CliOptions } from '../utils/config-loader';
 
 /**
  * 清除终端上指定行数的内容
@@ -381,9 +379,6 @@ export async function updateProjectConfigCommand(configKey: string): Promise<voi
     process.exit(1);
   }
 
-  console.log(`\n更新 ${configItem.label}...`);
-  console.log('='.repeat(60));
-
   // 创建 BusinessService 实例
   const businessService = new BusinessService({
     iamEndpoint:
@@ -433,9 +428,6 @@ export function getAvailableProjectConfigs(): ProjectConfigItem[] {
  * @param cliOptions 命令行选项
  */
 export async function showConfigCommand(cliOptions: CliOptions = {}): Promise<void> {
-  console.log('\n当前配置信息');
-  console.log('='.repeat(60));
-
   // 获取最终合并后的配置
   const mergedConfig = getMergedConfig(cliOptions);
 
@@ -473,20 +465,13 @@ export async function showConfigCommand(cliOptions: CliOptions = {}): Promise<vo
     console.log(`  全局配置: (不存在)`);
   }
 
-  const localEnvPath = path.resolve('.env');
-  if (fs.existsSync('.env')) {
-    console.log(`  当前目录: ${localEnvPath}`);
-  } else {
-    console.log(`  当前目录: (不存在)`);
-  }
-
   // 显示配置优先级说明
   console.log('\n【配置加载优先级】');
-  console.log('  命令行参数 > 当前目录 .env > 全局配置 > 默认值');
+  console.log('  命令行参数 > 全局配置 > 默认值');
 
   // 提示
-  if (!globalConfigExists() && !fs.existsSync('.env')) {
-    console.log('\n💡 提示: 未检测到任何配置文件，建议运行 `codearts config` 创建配置');
+  if (!globalConfigExists()) {
+    console.log('\n💡 提示: 未检测到全局配置文件，建议运行 `codearts config` 创建配置');
   }
 
   console.log('');

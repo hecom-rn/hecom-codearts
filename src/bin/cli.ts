@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { bugCommand } from '../commands/bug.command';
@@ -90,14 +89,10 @@ async function checkConfigAndRun() {
 
   // 如果没有参数（直接执行 codearts），检测配置
   if (args.length === 0) {
-    // 加载当前目录 .env 文件
-    dotenv.config();
-
-    // 检查是否有配置（全局配置或环境变量）
+    // 检查是否有全局配置
     const hasGlobalConfig = globalConfigExists();
-    const hasEnvConfig = process.env.PROJECT_ID && process.env.ROLE_ID;
 
-    if (!hasGlobalConfig && !hasEnvConfig) {
+    if (!hasGlobalConfig) {
       // 没有配置，自动执行 config 命令
       console.log('未检测到配置文件，启动配置向导...\n');
       await configCommand();
