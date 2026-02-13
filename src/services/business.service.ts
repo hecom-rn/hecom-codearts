@@ -5,6 +5,7 @@ import {
   IssueItemV2,
   IterationInfo,
   ProjectMember,
+  ProjectRole,
   TypeWorkHourStats,
   UserAllWorkHourStats,
   UserWorkHourStats,
@@ -51,6 +52,55 @@ export class BusinessService {
 
     const allMembers = membersResponse.data?.members || [];
     return allMembers.filter((member) => member.role_id === roleId);
+  }
+
+  /**
+   * 获取项目中的所有角色列表（去重）
+   * @param projectId 项目ID
+   * @returns 项目中的所有角色列表
+   */
+  async getProjectRoles(projectId: string): Promise<ProjectRole[]> {
+    // 分页获取所有成员
+    const allMembers: ProjectMember[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const membersResponse = await this.apiService.getMembers(projectId, {
+        limit: pageSize,
+        offset: offset,
+      });
+
+      if (!membersResponse.success) {
+        throw new Error(`获取成员列表失败: ${membersResponse.error || '未知错误'}`);
+      }
+
+      const members =
+        membersResponse.data?.members.filter(
+          (member) => member.role_id !== -1 && member.nick_name != null
+        ) || [];
+      allMembers.push(...members);
+
+      // 判断是否还有更多数据
+      const total = membersResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    // 使用 Map 去重，key 为 role_id
+    const rolesMap = new Map<number, ProjectRole>();
+    allMembers.forEach((member) => {
+      if (!rolesMap.has(member.role_id)) {
+        rolesMap.set(member.role_id, {
+          role_id: member.role_id,
+          role_name: member.role_name,
+        });
+      }
+    });
+
+    // 转换为数组并按 role_id 排序
+    return Array.from(rolesMap.values()).sort((a, b) => a.role_id - b.role_id);
   }
 
   /**
@@ -526,5 +576,34 @@ export class BusinessService {
     }
 
     return allChildIssues;
+  }
+
+  /**
+   * 验证 IAM 凭证是否有效
+   * @returns 验证结果，包含成功状态和可能的错误信息
+   */
+  async validateCredentials(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.apiService.refreshToken();
+      return { success: true };
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /**
+   * 获取项目列表
+   * @param limit 返回的项目数量限制，默认100
+   * @returns 项目列表
+   */
+  async getProjects(limit: number = 100): Promise<import('../types').Project[]> {
+    const response = await this.apiService.getProjects({ limit });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error || '获取项目列表失败');
+    }
+
+    return response.data.projects;
   }
 }

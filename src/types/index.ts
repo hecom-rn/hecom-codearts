@@ -169,8 +169,14 @@ export interface ProjectMemberListResponse {
 }
 
 export interface ProjectMemberQueryParams {
-  offset?: number; // 分页索引，偏移量，从0开始，最大值10000，默认0
-  limit?: number; // 每页显示数量，最小值1，最大值1000，默认10
+  offset?: number; // 分页索引，偏移量，从0开始,最大值10000,默认0
+  limit?: number; // 每页显示数量,最小值1,最大值1000,默认10
+}
+
+// 项目角色相关类型
+export interface ProjectRole {
+  role_id: number;
+  role_name: string;
 }
 
 // 工时相关类型

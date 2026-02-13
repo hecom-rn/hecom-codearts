@@ -1,7 +1,6 @@
 import inquirer from 'inquirer';
 import * as readline from 'readline';
-import { ApiService } from '../services/api.service';
-import { Project } from '../types';
+import { BusinessService } from '../services/business.service';
 import {
   getGlobalConfigPath,
   globalConfigExists,
@@ -17,73 +16,6 @@ function clearLines(lines: number): void {
   for (let i = 0; i < lines; i++) {
     readline.moveCursor(process.stdout, 0, -1); // 光标向上移动一行
     readline.clearLine(process.stdout, 0); // 清除当前行
-  }
-}
-
-/**
- * 验证 IAM 凭证
- */
-async function validateCredentials(
-  iamEndpoint: string,
-  region: string,
-  codeartsUrl: string,
-  domain: string,
-  username: string,
-  password: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const apiService = new ApiService({
-      iamEndpoint,
-      region,
-      endpoint: codeartsUrl,
-      username,
-      password,
-      domainName: domain,
-      enableLogging: false,
-    });
-
-    await apiService.refreshToken();
-
-    return { success: true };
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    return { success: false, error: errorMsg };
-  }
-}
-
-/**
- * 获取项目列表
- */
-async function fetchProjects(
-  iamEndpoint: string,
-  region: string,
-  codeartsUrl: string,
-  domain: string,
-  username: string,
-  password: string
-): Promise<Project[]> {
-  try {
-    const apiService = new ApiService({
-      iamEndpoint,
-      region,
-      endpoint: codeartsUrl,
-      username,
-      password,
-      domainName: domain,
-      enableLogging: false,
-    });
-
-    const response = await apiService.getProjects({ limit: 100 });
-
-    if (!response.success || !response.data) {
-      throw new Error(response.error || '获取项目列表失败');
-    }
-
-    return response.data.projects;
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('❌ 获取项目列表失败:', errorMsg, '\n');
-    return [];
   }
 }
 
@@ -117,6 +49,7 @@ export async function configCommand(): Promise<void> {
 
   // 第一阶段：IAM 凭证配置
   let credentialsValid = false;
+  let businessService: BusinessService | null = null;
   let iamAnswers = {
     iamEndpoint: '',
     region: '',
@@ -172,15 +105,19 @@ export async function configCommand(): Promise<void> {
       },
     ]);
 
+    // 创建 BusinessService 实例
+    businessService = new BusinessService({
+      iamEndpoint: iamAnswers.iamEndpoint,
+      region: iamAnswers.region,
+      endpoint: iamAnswers.codeartsUrl,
+      username: iamAnswers.username,
+      password: iamAnswers.password,
+      domainName: iamAnswers.domain,
+      enableLogging: false,
+    });
+
     // 验证凭证
-    const validationResult = await validateCredentials(
-      iamAnswers.iamEndpoint,
-      iamAnswers.region,
-      iamAnswers.codeartsUrl,
-      iamAnswers.domain,
-      iamAnswers.username,
-      iamAnswers.password
-    );
+    const validationResult = await businessService.validateCredentials();
 
     if (validationResult.success) {
       credentialsValid = true;
@@ -211,18 +148,44 @@ export async function configCommand(): Promise<void> {
   }
 
   // 第二阶段：获取项目列表并选择项目
-  const projects = await fetchProjects(
-    iamAnswers.iamEndpoint,
-    iamAnswers.region,
-    iamAnswers.codeartsUrl,
-    iamAnswers.domain,
-    iamAnswers.username,
-    iamAnswers.password
-  );
-
   let projectId: string;
 
-  if (projects.length === 0) {
+  try {
+    const projects = await businessService!.getProjects(100);
+
+    if (projects.length === 0) {
+      const { manualProjectId } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'manualProjectId',
+          message: '项目 ID:',
+          default: existingConfig.PROJECT_ID || '',
+          validate: (input: string) => (input.trim() ? true : '项目 ID 不能为空'),
+        },
+      ]);
+      projectId = manualProjectId;
+    } else {
+      const projectChoices = projects.map((p) => ({
+        name: `${p.project_name} (${p.project_id})`,
+        value: p.project_id,
+      }));
+
+      const { selectedProjectId } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'selectedProjectId',
+          message: '请选择项目:',
+          choices: projectChoices,
+          default: existingConfig.PROJECT_ID || projectChoices[0]?.value,
+        },
+      ]);
+      projectId = selectedProjectId;
+    }
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('❌ 获取项目列表失败:', errorMsg, '\n');
+
+    // 获取失败，使用手动输入
     const { manualProjectId } = await inquirer.prompt([
       {
         type: 'input',
@@ -233,41 +196,81 @@ export async function configCommand(): Promise<void> {
       },
     ]);
     projectId = manualProjectId;
-  } else {
-    const projectChoices = projects.map((p) => ({
-      name: `${p.project_name} (${p.project_id})`,
-      value: p.project_id,
-    }));
-
-    const { selectedProjectId } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'selectedProjectId',
-        message: '请选择项目:',
-        choices: projectChoices,
-        default: existingConfig.PROJECT_ID || projectChoices[0]?.value,
-      },
-    ]);
-    projectId = selectedProjectId;
   }
 
-  // 第三阶段：其他配置
-  const otherAnswers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'roleId',
-      message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
-      default: existingConfig.ROLE_ID || '',
-      validate: (input: string) => {
-        if (!input.trim()) {
-          return '角色 ID 不能为空';
-        }
-        const ids = input.split(',').map((id) => id.trim());
-        const allValid = ids.every((id) => /^\d+$/.test(id));
-        return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
+  // 第三阶段：获取角色列表并选择角色
+  let roleIds: string;
+
+  try {
+    const roles = await businessService!.getProjectRoles(projectId);
+
+    if (roles.length === 0) {
+      // 如果没有获取到角色，使用手动输入
+      const { manualRoleId } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'manualRoleId',
+          message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
+          default: existingConfig.ROLE_ID || '',
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return '角色 ID 不能为空';
+            }
+            const ids = input.split(',').map((id) => id.trim());
+            const allValid = ids.every((id) => /^\d+$/.test(id));
+            return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
+          },
+        },
+      ]);
+      roleIds = manualRoleId;
+    } else {
+      // 使用多选框选择角色
+      const roleChoices = roles.map((role) => ({
+        name: `${role.role_name} (${role.role_id})`,
+        value: role.role_id.toString(),
+        checked: existingConfig.ROLE_ID
+          ? existingConfig.ROLE_ID.split(',').includes(role.role_id.toString())
+          : false,
+      }));
+
+      const { selectedRoleIds } = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'selectedRoleIds',
+          message: '请选择角色：',
+          choices: roleChoices,
+          validate: (input: string[]) => {
+            if (input.length === 0) {
+              return '至少选择一个角色';
+            }
+            return true;
+          },
+        },
+      ]);
+
+      roleIds = selectedRoleIds.join(',');
+    }
+  } catch (error) {
+    console.error('❌ 获取角色列表失败:', error);
+    // 如果获取失败，使用手动输入
+    const { manualRoleId } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'manualRoleId',
+        message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
+        default: existingConfig.ROLE_ID || '',
+        validate: (input: string) => {
+          if (!input.trim()) {
+            return '角色 ID 不能为空';
+          }
+          const ids = input.split(',').map((id) => id.trim());
+          const allValid = ids.every((id) => /^\d+$/.test(id));
+          return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
+        },
       },
-    },
-  ]);
+    ]);
+    roleIds = manualRoleId;
+  }
 
   // 合并所有配置
   const finalConfig = {
@@ -277,8 +280,8 @@ export async function configCommand(): Promise<void> {
     domain: iamAnswers.domain,
     username: iamAnswers.username,
     password: iamAnswers.password,
-    projectId: projectId,
-    roleId: otherAnswers.roleId,
+    projectId,
+    roleId: roleIds,
   };
 
   try {
