@@ -2,6 +2,16 @@
 
 本文档面向 AI 编码代理（如 GitHub Copilot、Cursor、OpenCode），提供项目的构建命令、代码风格和架构指南。
 
+## Code Generation Requirements
+
+When generating code for this project, follow these strict guidelines:
+
+1. **绝对不要生成示例代码** - Never generate example code or usage examples
+2. **不要生成说明文档** - Do not generate documentation or explanation comments
+3. **除非明确说明，不要生成测试用例** - Do not generate test cases unless explicitly requested
+
+Focus solely on production code implementation without examples, documentation, or tests unless specifically requested.
+
 ## 1. 项目概述
 
 这是一个基于 **TypeScript/Node.js** 构建的**华为云 CodeArts 统计分析工具**。
@@ -82,8 +92,8 @@ src/
 │   ├── api.service.ts      # 华为云基础 API 封装
 │   └── business.service.ts # 业务场景 API 封装
 ├── utils/                  # 工具函数
-│   ├── global-config.ts     # 全局配置管理
-│   └── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
+│   ├── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
+│   └── logger.ts           # 日志工具（单例模式，支持多种输出格式）
 ├── config/
 │   └── holidays.ts         # 节假日配置与工作日计算
 ├── types/
@@ -135,7 +145,7 @@ bin/
 - **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
 - **`src/commands/bug.command.ts`**: 产品缺陷率统计命令逻辑
 - **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和全局配置
-- **`src/utils/global-config.ts`**: 全局配置文件管理（读取、写入、删除）
+- **`src/utils/logger.ts`**: 日志工具（单例模式，支持多种输出格式）
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
 - **`src/config/holidays.ts`**: 节假日配置与判断逻辑，用于计算年度应计工作日
@@ -287,9 +297,82 @@ try {
 
 ---
 
-## 7. 注释与文档规范
+## 7. 日志输出规范
 
-### 7.1 函数注释
+### 7.1 Logger 工具
+
+项目使用统一的 Logger 工具（`src/utils/logger.ts`）进行日志输出。
+
+**重要原则**：
+
+- ⛔ **禁止使用 `console.log`、`console.error`、`console.warn` 等原生方法**
+- ✅ **必须使用 `logger` 工具的方法进行所有日志输出**
+
+### 7.2 Logger 方法
+
+从 `src/utils/logger.ts` 导入：
+
+```typescript
+import { logger } from '../utils/logger';
+```
+
+### 7.3 静默模式
+
+当输出格式为 `json` 时，Logger 自动进入静默模式：
+
+- `info`、`success`、`warn`、`debug`、`table` 方法被静默
+- `error` 和 `json` 方法始终输出
+
+这确保 `--output json` 时只输出纯 JSON 数据，不混入其他日志信息。
+
+### 7.4 错误输出规范
+
+错误处理中使用 logger.error：
+
+```typescript
+try {
+  // 业务逻辑
+} catch (error: unknown) {
+  logger.error(`操作失败: ${String(error)}`);
+  throw error;
+}
+```
+
+**禁止使用 `console.error`**：
+
+```typescript
+// ❌ 错误示例
+console.error('操作失败');
+
+// ✅ 正确示例
+logger.error('操作失败');
+```
+
+### 7.6 导入规范
+
+所有需要输出日志的文件必须导入 logger：
+
+```typescript
+import { logger } from '../utils/logger';
+```
+
+**禁止直接使用 console**：
+
+```typescript
+// ❌ 错误示例
+console.log('Hello');
+console.error('Error');
+
+// ✅ 正确示例
+logger.info('Hello');
+logger.error('Error');
+```
+
+---
+
+## 8. 注释与文档规范
+
+### 8.1 函数注释
 
 - 公共 API 必须使用 JSDoc 注释
 - 注释包括：功能说明、参数说明、返回值说明
@@ -308,7 +391,7 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 }
 ```
 
-### 7.2 注释原则
+### 8.2 注释原则
 
 - **不要生成示例代码** - 除非用户明确要求，否则不生成使用示例
 - **不要生成说明文档** - 不要在代码中生成冗长的文档注释
@@ -318,14 +401,14 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ---
 
-## 8. API 设计原则
+## 9. API 设计原则
 
-### 8.1 服务分层
+### 9.1 服务分层
 
 - **ApiService**: 封装华为云 CodeArts 的原始 API 调用
 - **BusinessService**: 封装面向业务场景的高级操作
 
-### 8.2 响应格式
+### 9.2 响应格式
 
 - 统一使用 `ApiResponse<T>` 包装响应
 - 响应结构：
@@ -338,14 +421,14 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
   }
   ```
 
-### 8.3 参数传递
+### 9.3 参数传递
 
 - 使用接口定义复杂参数（如查询参数、请求体）
 - 可选参数使用 `?` 标记
 
 ---
 
-## 9. 配置管理
+## 10. 配置管理
 
 ### 配置方式
 
@@ -445,23 +528,9 @@ ROLE_ID=1,2,3
 
 **注意**：只有可变配置才能通过 CLI 参数覆盖。不可变配置必须通过 `codearts config` 命令设置。
 
-配置加载实现示例：
-
-```typescript
-import { ConfigKey, PartialConfigMap } from '../types';
-import { readGlobalConfig, globalConfigExists } from './config-loader';
-
-// 加载全局配置
-const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
-
-// 合并配置：命令行参数 > 全局配置
-const projectId = globalConfig[ConfigKey.PROJECT_ID];
-const roleIdStr = cliOptions.roleId || globalConfig[ConfigKey.ROLE_ID];
-```
-
 ---
 
-## 10. 编码最佳实践
+## 11. 编码最佳实践
 
 1. **不要硬编码**: 使用全局配置文件
 2. **避免重复代码**: 提取公共逻辑到独立函数
@@ -470,59 +539,9 @@ const roleIdStr = cliOptions.roleId || globalConfig[ConfigKey.ROLE_ID];
 5. **优先使用箭头函数**: 保持 `this` 上下文清晰
 6. **使用可选链**: `?.` 和 `??` 简化空值处理
 7. **遵循 DRY 原则**: Don't Repeat Yourself
+8. **使用 logger 工具**: 禁止使用 `console.log`、`console.error` 等原生方法
 
 ---
 
-## 11. Git 提交规范
-
-提交信息格式：
-
-```
-<type>: <subject>
-
-<body>
-```
-
-类型（type）：
-
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `refactor`: 重构
-- `docs`: 文档更新
-- `test`: 测试相关
-- `chore`: 构建/工具链相关
-
-示例：
-
-```
-feat: 添加按领域统计工时功能
-
-- 在 getAllWorkHourStats 方法中增加按领域分组逻辑
-- 为每个工时记录关联 issue 的领域信息
-- 输出按领域汇总的工时统计
-```
-
----
-
-## 12. 特别注意事项
-
-### Copilot 指令（来自 `.github/copilot-instructions.md`）
-
-1. **绝对不要生成示例代码** - Never generate example code or usage examples
-2. **不要生成说明文档** - Do not generate documentation or explanation comments
-3. **除非明确说明，不要生成测试用例** - Do not generate test cases unless explicitly requested
-
-Focus solely on production code implementation without examples, documentation, or tests unless specifically requested.
-
-### TypeScript 编译配置
-
-`tsconfig.json` 编译配置：
-
-- 编译所有 `src/` 下的 TypeScript 文件到 `dist/`
-- CLI 入口文件在 `src/bin/cli.ts`，编译后为 `dist/bin/cli.js`
-- `bin/hecom-codearts` 可执行文件通过 `require('../dist/bin/cli.js')` 加载
-
----
-
-**本文档版本**: 2026-02-09  
+**本文档版本**: 2026-02-13  
 **适用于**: AI 编码代理（GitHub Copilot, Cursor, OpenCode 等）

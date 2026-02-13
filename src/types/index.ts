@@ -664,3 +664,8 @@ export type ConfigMap = {
  * 部分配置映射（用于读取配置文件）
  */
 export type PartialConfigMap = Partial<ConfigMap>;
+
+/**
+ * 输出格式类型
+ */
+export type OutputFormat = 'console' | 'csv' | 'json';

@@ -3,12 +3,13 @@ import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
 import { ConfigKey, PartialConfigMap } from '../types';
 import {
+  configExists,
   getConfig,
-  getGlobalConfigPath,
-  globalConfigExists,
-  readGlobalConfig,
-  writeGlobalConfig,
+  getConfigPath,
+  readConfig,
+  writeConfig,
 } from '../utils/config-loader';
+import { logger } from '../utils/logger';
 
 /**
  * 清除终端上指定行数的内容
@@ -90,7 +91,7 @@ async function configureRoleIds(
       return selectedRoleIds.join(',');
     }
   } catch (error) {
-    console.error('❌ 获取角色列表失败:', error);
+    logger.error('❌ 获取角色列表失败:', error);
     // 如果获取失败，使用手动输入
     const { manualRoleId } = await inquirer.prompt([
       {
@@ -135,14 +136,14 @@ const PROJECT_CONFIG_ITEMS: ProjectConfigItem[] = [
  * 引导用户创建或更新全局配置文件
  */
 export async function configCommand(): Promise<void> {
-  console.log('\n欢迎使用 Hecom CodeArts 配置向导');
-  console.log('='.repeat(60));
-  console.log('此向导将帮助您配置华为云 CodeArts API 访问凭证。');
-  console.log(`配置将保存到: ${getGlobalConfigPath()}\n`);
+  logger.info('\n欢迎使用 Hecom CodeArts 配置向导');
+  logger.info('='.repeat(60));
+  logger.info('此向导将帮助您配置华为云 CodeArts API 访问凭证。');
+  logger.info(`配置将保存到: ${getConfigPath()}\n`);
 
-  const existingConfig = globalConfigExists() ? readGlobalConfig() : {};
+  const existingConfig = configExists() ? readConfig() : {};
 
-  if (globalConfigExists()) {
+  if (configExists()) {
     const { overwrite } = await inquirer.prompt([
       {
         type: 'confirm',
@@ -153,7 +154,7 @@ export async function configCommand(): Promise<void> {
     ]);
 
     if (!overwrite) {
-      console.log('\n已取消配置。');
+      logger.info('\n已取消配置。');
       return;
     }
   }
@@ -239,7 +240,7 @@ export async function configCommand(): Promise<void> {
       credentialsValid = true;
     } else {
       const errorMessage = `❌ IAM 凭证验证失败: ${validationResult.error}\n`;
-      console.error(errorMessage);
+      logger.error(errorMessage);
 
       const { retry } = await inquirer.prompt([
         {
@@ -251,7 +252,7 @@ export async function configCommand(): Promise<void> {
       ]);
 
       if (!retry) {
-        console.log('\n已取消配置。');
+        logger.info('\n已取消配置。');
         return;
       }
 
@@ -299,7 +300,7 @@ export async function configCommand(): Promise<void> {
     }
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('❌ 获取项目列表失败:', errorMsg, '\n');
+    logger.error(`❌ 获取项目列表失败: `, error);
 
     // 获取失败，使用手动输入
     const { manualProjectId } = await inquirer.prompt([
@@ -339,12 +340,12 @@ export async function configCommand(): Promise<void> {
   };
 
   try {
-    writeGlobalConfig(finalConfig);
-    console.log('\n✅ 全局配置已成功保存');
-    console.log(`配置文件位置: ${getGlobalConfigPath()}`);
-    console.log('\n提示：配置文件包含敏感信息，请妥善保管。');
+    writeConfig(finalConfig);
+    logger.success('\n✅ 全局配置已成功保存');
+    logger.info(`配置文件位置: ${getConfigPath()}`);
+    logger.info('\n提示：配置文件包含敏感信息，请妥善保管。');
   } catch (error) {
-    console.error('\n❌ 保存配置文件失败:', error);
+    logger.error('\n❌ 保存配置文件失败:', error);
     process.exit(1);
   }
 }
@@ -355,36 +356,36 @@ export async function configCommand(): Promise<void> {
  */
 export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<void> {
   // 检查配置文件是否存在
-  if (!globalConfigExists()) {
-    console.error('\n❌ 全局配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
+  if (!configExists()) {
+    logger.error('\n❌ 全局配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
     process.exit(1);
   }
 
   // 查找对应的配置项
   const configItem = PROJECT_CONFIG_ITEMS.find((item) => item.key === configKey);
   if (!configItem) {
-    console.error(`\n❌ 未知的配置项: ${configKey}`);
-    console.log(`\n可用的配置项:`);
+    logger.error(`\n❌ 未知的配置项: ${configKey}`);
+    logger.info(`\n可用的配置项:`);
     PROJECT_CONFIG_ITEMS.forEach((item) => {
-      console.log(`  - ${item.key}: ${item.label}`);
+      logger.info(`  - ${item.key}: ${item.label}`);
     });
     process.exit(1);
   }
 
   // 读取现有配置
-  const existingConfig = readGlobalConfig();
+  const existingConfig = readConfig();
 
   // 检查必要的配置是否存在
   if (
     !existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME] ||
     !existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]
   ) {
-    console.error('\n❌ 全局配置不完整，请先运行 `npx @hecom/codearts config` 完成配置。');
+    logger.error('\n❌ 全局配置不完整，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
   if (!existingConfig[ConfigKey.PROJECT_ID]) {
-    console.error('\n❌ 项目 ID 未配置，请先运行 `npx @hecom/codearts config` 完成配置。');
+    logger.error('\n❌ 项目 ID 未配置，请先运行 `npx @hecom/codearts config` 完成配置。');
     process.exit(1);
   }
 
@@ -413,11 +414,11 @@ export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<
   };
 
   try {
-    writeGlobalConfig(updatedConfig);
-    console.log(`\n✅ ${configItem.label}已成功更新`);
-    console.log(`配置文件位置: ${getGlobalConfigPath()}`);
+    writeConfig(updatedConfig);
+    logger.success(`\n✅ ${configItem.label}已成功更新`);
+    logger.info(`配置文件位置: ${getConfigPath()}`);
   } catch (error) {
-    console.error('\n❌ 保存配置文件失败:', error);
+    logger.error('\n❌ 保存配置文件失败:', error);
     process.exit(1);
   }
 }
@@ -438,7 +439,7 @@ export async function showConfigCommand(): Promise<void> {
   const config = getConfig();
 
   // 按类别显示配置
-  console.log('\n【华为云 IAM 凭证】');
+  logger.info('\n【华为云 IAM 凭证】');
   const iamKeys: ConfigKey[] = [
     ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT,
     ConfigKey.HUAWEI_CLOUD_REGION,
@@ -449,10 +450,10 @@ export async function showConfigCommand(): Promise<void> {
   for (const key of iamKeys) {
     const value = config[key] || '(未配置)';
     const displayValue = key.includes('PASSWORD') && value !== '(未配置)' ? '********' : value;
-    console.log(`  ${formatKeyName(key)}: ${displayValue}`);
+    logger.info(`  ${formatKeyName(key)}: ${displayValue}`);
   }
 
-  console.log('\n【CodeArts 配置】');
+  logger.info('\n【CodeArts 配置】');
   const codeartsKeys: ConfigKey[] = [
     ConfigKey.CODEARTS_BASE_URL,
     ConfigKey.PROJECT_ID,
@@ -460,7 +461,7 @@ export async function showConfigCommand(): Promise<void> {
   ];
   for (const key of codeartsKeys) {
     const value = config[key] || '(未配置)';
-    console.log(`  ${formatKeyName(key)}: ${value}`);
+    logger.info(`  ${formatKeyName(key)}: ${value}`);
   }
 }
 

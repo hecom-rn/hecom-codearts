@@ -24,14 +24,24 @@ npx @hecom/codearts daily
 # 生成当年工时统计
 npx @hecom/codearts work-hour
 
+# 按迭代统计产品缺陷率
+npx @hecom/codearts bug-rate "迭代1,迭代2"
+```
+
+### 3. 更新配置
+
+```bash
 # 更新全局配置
 npx @hecom/codearts config
 
 # 单独更新角色配置
 npx @hecom/codearts config role-id
+
+# 查看当前配置
+npx @hecom/codearts config show
 ```
 
-### 3. 升级
+### 4. 升级
 
 ```bash
 # 更新最新版本
@@ -56,13 +66,15 @@ npm install
 
 ### 本地运行
 
+> 本地运行命令时，注意使用 `--` 分隔 npm 参数和 CLI 参数，否则 CLI 参数可能无法正确传递。
+
 ```bash
 # 运行命令
 npm run dev
 
-npm run dev daily
+npm run dev -- daily
 
-npm run dev work-hour
+npm run dev -- work-hour
 ```
 
 ### 本地链接 CLI 工具
@@ -79,10 +91,10 @@ codearts --help
 | --------------------------- | ---------------------------------- | ---- |
 | `HUAWEI_CLOUD_IAM_ENDPOINT` | IAM 认证端点                       | 是   |
 | `HUAWEI_CLOUD_REGION`       | 华为云区域                         | 是   |
+| `CODEARTS_BASE_URL`         | CodeArts API 地址                  | 是   |
+| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名                       | 是   |
 | `HUAWEI_CLOUD_USERNAME`     | IAM 用户名                         | 是   |
 | `HUAWEI_CLOUD_PASSWORD`     | IAM 密码                           | 是   |
-| `HUAWEI_CLOUD_DOMAIN`       | 华为云账号名                       | 是   |
-| `CODEARTS_BASE_URL`         | CodeArts API 地址                  | 是   |
 | `PROJECT_ID`                | 项目 ID                            | 是   |
 | `ROLE_ID`                   | 角色 ID（支持逗号分隔，如: 1,2,3） | 是   |
 

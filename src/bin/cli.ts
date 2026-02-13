@@ -11,7 +11,8 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
-import { globalConfigExists } from '../utils/config-loader';
+import { configExists } from '../utils/config-loader';
+import { logger } from '../utils/logger';
 
 // 读取 package.json 中的版本号
 const packageJsonPath = path.join(__dirname, '../../package.json');
@@ -23,7 +24,9 @@ const program = new Command();
 program.name('codearts').description('华为云 CodeArts 统计分析工具').version(version);
 
 // 全局选项（环境变量覆盖）
-program.option('--role-id <ids>', '角色 ID（支持逗号分隔，如: 1,2,3），优先级高于环境变量 ROLE_ID');
+program
+  .option('--role-id <ids>', '角色 ID（支持逗号分隔，如: 1,2）')
+  .option('--output <format>', '输出格式：console、csv、json', 'console');
 
 // config 命令 - 交互式配置向导
 const configCmd = program
@@ -57,27 +60,30 @@ availableConfigs.forEach((configItem) => {
 program
   .command('daily [date]')
   .description('生成日报统计')
-  .action(async (date) => {
-    const opts = program.opts();
-    await dailyCommand(date, opts);
+  .action(async (date, options, command) => {
+    const cliOptions = command.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await dailyCommand(date, cliOptions);
   });
 
 // work-hour 命令
 program
   .command('work-hour [year]')
   .description('生成年度工时统计')
-  .action(async (year) => {
-    const opts = program.opts();
-    await workHourCommand(year, opts);
+  .action(async (year, options, command) => {
+    const cliOptions = command.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await workHourCommand(year, cliOptions);
   });
 
 // bug-rate 命令
 program
   .command('bug-rate <iterations>')
   .description('按迭代统计产品缺陷率，支持多个迭代（逗号分隔）')
-  .action(async (iterations) => {
-    const opts = program.opts();
-    await bugCommand(iterations, opts);
+  .action(async (iterations, options, command) => {
+    const cliOptions = command.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await bugCommand(iterations, cliOptions);
   });
 
 // 检查配置并自动执行 config 命令
@@ -87,11 +93,11 @@ async function checkConfigAndRun() {
   // 如果没有参数（直接执行 codearts），检测配置
   if (args.length === 0) {
     // 检查是否有全局配置
-    const hasGlobalConfig = globalConfigExists();
+    const hasConfig = configExists();
 
-    if (!hasGlobalConfig) {
+    if (!hasConfig) {
       // 没有配置，自动执行 config 命令
-      console.log('未检测到配置文件，启动配置向导...\n');
+      logger.info('未检测到配置文件，启动配置向导...\n');
       await configCommand();
       return;
     }
@@ -105,6 +111,6 @@ async function checkConfigAndRun() {
 }
 
 checkConfigAndRun().catch((error) => {
-  console.error('执行失败:', error);
+  logger.error('执行失败: ', error);
   process.exit(1);
 });

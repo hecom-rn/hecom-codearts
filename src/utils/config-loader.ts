@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ConfigKey, HuaweiCloudConfig, PartialConfigMap } from '../types';
+import { ConfigKey, HuaweiCloudConfig, OutputFormat, PartialConfigMap } from '../types';
 
 /**
  * 全局配置管理工具
@@ -23,22 +23,22 @@ function ensureConfigDir(): void {
 /**
  * 获取全局配置文件路径
  */
-export function getGlobalConfigPath(): string {
+export function getConfigPath(): string {
   return CONFIG_FILE;
 }
 
 /**
  * 检查全局配置文件是否存在
  */
-export function globalConfigExists(): boolean {
+export function configExists(): boolean {
   return fs.existsSync(CONFIG_FILE);
 }
 
 /**
  * 读取全局配置
  */
-export function readGlobalConfig(): PartialConfigMap {
-  if (!globalConfigExists()) {
+export function readConfig(): PartialConfigMap {
+  if (!configExists()) {
     return {};
   }
 
@@ -97,7 +97,7 @@ const CONFIG_GROUPS = [
  * 写入全局配置
  * 支持动态配置项，自动按分组组织配置文件
  */
-export function writeGlobalConfig(config: PartialConfigMap): void {
+export function writeConfig(config: PartialConfigMap): void {
   ensureConfigDir();
 
   // 构建配置文件头部
@@ -136,8 +136,8 @@ export function writeGlobalConfig(config: PartialConfigMap): void {
 /**
  * 删除全局配置
  */
-export function deleteGlobalConfig(): void {
-  if (globalConfigExists()) {
+export function deleteConfig(): void {
+  if (configExists()) {
     try {
       fs.unlinkSync(CONFIG_FILE);
     } catch (error) {
@@ -147,16 +147,18 @@ export function deleteGlobalConfig(): void {
 }
 
 // 加载全局配置
-const globalConfig = globalConfigExists() ? readGlobalConfig() : {};
+const globalConfig = configExists() ? readConfig() : {};
 
 export interface CliOptions {
   roleId?: string;
+  output?: string;
 }
 
 export interface LoadedConfig {
   projectId: string;
   roleIds: number[];
   config: HuaweiCloudConfig;
+  outputFormat: OutputFormat;
 }
 
 /**
@@ -194,6 +196,12 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
     throw new Error('缺少华为云认证信息，请先运行 `npx @hecom/codearts config` 创建配置');
   }
 
+  // 处理输出格式
+  const outputFormat = (cliOptions.output || 'console') as OutputFormat;
+  if (!['console', 'csv', 'json'].includes(outputFormat)) {
+    throw new Error('输出格式必须是 console、csv 或 json 之一');
+  }
+
   const config: HuaweiCloudConfig = {
     iamEndpoint,
     region,
@@ -203,7 +211,7 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
     domainName: domain,
   };
 
-  return { projectId, roleIds, config };
+  return { projectId, roleIds, config, outputFormat };
 }
 
 /**
