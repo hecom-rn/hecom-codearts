@@ -24,8 +24,11 @@ npx @hecom/codearts daily
 # 生成当年工时统计
 npx @hecom/codearts work-hour
 
-# 更新配置
+# 更新全局配置
 npx @hecom/codearts config
+
+# 单独更新角色配置
+npx @hecom/codearts config role-id
 ```
 
 ### 3. 升级

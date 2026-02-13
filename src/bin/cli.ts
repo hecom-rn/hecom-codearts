@@ -4,7 +4,11 @@ import dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { bugCommand } from '../commands/bug.command';
-import { configCommand } from '../commands/config.command';
+import {
+  configCommand,
+  getAvailableProjectConfigs,
+  updateProjectConfigCommand,
+} from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { globalConfigExists } from '../utils/global-config';
@@ -22,12 +26,24 @@ program.name('codearts').description('华为云 CodeArts 统计分析工具').ve
 program.option('--role-id <ids>', '角色 ID（支持逗号分隔，如: 1,2,3），优先级高于环境变量 ROLE_ID');
 
 // config 命令 - 交互式配置向导
-program
+const configCmd = program
   .command('config')
   .description('交互式配置向导，引导用户创建或更新全局配置文件\n\n')
   .action(async () => {
     await configCommand();
   });
+
+// 为每个项目配置项添加子命令
+const availableConfigs = getAvailableProjectConfigs();
+availableConfigs.forEach((configItem) => {
+  const subCommandName = configItem.key.toLowerCase().replace(/_/g, '-');
+  configCmd
+    .command(subCommandName)
+    .description(`更新${configItem.label}`)
+    .action(async () => {
+      await updateProjectConfigCommand(configItem.key);
+    });
+});
 
 // daily 命令
 program
