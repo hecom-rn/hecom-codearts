@@ -1,4 +1,6 @@
 import inquirer from 'inquirer';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
 import {
@@ -7,6 +9,7 @@ import {
   readGlobalConfig,
   writeGlobalConfig,
 } from '../utils/global-config';
+import { getMergedConfig, getConfigSource, CliOptions } from '../utils/config-loader';
 
 /**
  * 清除终端上指定行数的内容
@@ -311,7 +314,6 @@ export async function configCommand(): Promise<void> {
   const projectConfigs: Record<string, string> = {};
 
   for (const configItem of PROJECT_CONFIG_ITEMS) {
-    console.log(`\n配置 ${configItem.label}...`);
     const value = await configItem.configure(
       businessService!,
       projectId,
@@ -320,15 +322,15 @@ export async function configCommand(): Promise<void> {
     projectConfigs[configItem.key] = value;
   }
 
-  // 合并所有配置
+  // 合并所有配置（转换为标准环境变量名）
   const finalConfig = {
-    iamEndpoint: iamAnswers.iamEndpoint,
-    region: iamAnswers.region,
-    codeartsUrl: iamAnswers.codeartsUrl,
-    domain: iamAnswers.domain,
-    username: iamAnswers.username,
-    password: iamAnswers.password,
-    projectId,
+    HUAWEI_CLOUD_IAM_ENDPOINT: iamAnswers.iamEndpoint,
+    HUAWEI_CLOUD_REGION: iamAnswers.region,
+    CODEARTS_BASE_URL: iamAnswers.codeartsUrl,
+    HUAWEI_CLOUD_DOMAIN: iamAnswers.domain,
+    HUAWEI_CLOUD_USERNAME: iamAnswers.username,
+    HUAWEI_CLOUD_PASSWORD: iamAnswers.password,
+    PROJECT_ID: projectId,
     ...projectConfigs,
   };
 
@@ -423,4 +425,86 @@ export async function updateProjectConfigCommand(configKey: string): Promise<voi
  */
 export function getAvailableProjectConfigs(): ProjectConfigItem[] {
   return PROJECT_CONFIG_ITEMS;
+}
+
+/**
+ * 显示当前配置
+ * 显示最终合并后的配置信息（包含配置来源）
+ * @param cliOptions 命令行选项
+ */
+export async function showConfigCommand(cliOptions: CliOptions = {}): Promise<void> {
+  console.log('\n当前配置信息');
+  console.log('='.repeat(60));
+
+  // 获取最终合并后的配置
+  const mergedConfig = getMergedConfig(cliOptions);
+
+  // 按类别显示配置
+  console.log('\n【华为云 IAM 凭证】');
+  const iamKeys = [
+    'HUAWEI_CLOUD_IAM_ENDPOINT',
+    'HUAWEI_CLOUD_REGION',
+    'HUAWEI_CLOUD_USERNAME',
+    'HUAWEI_CLOUD_PASSWORD',
+    'HUAWEI_CLOUD_DOMAIN',
+  ];
+  for (const key of iamKeys) {
+    const value = mergedConfig[key] || '(未配置)';
+    const displayValue = key.includes('PASSWORD') && value !== '(未配置)' ? '********' : value;
+    const source = value !== '(未配置)' ? getConfigSource(key, cliOptions) : '';
+    const sourceInfo = source ? ` [来源: ${source}]` : '';
+    console.log(`  ${formatKeyName(key)}: ${displayValue}${sourceInfo}`);
+  }
+
+  console.log('\n【CodeArts 配置】');
+  const codeartsKeys = ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'];
+  for (const key of codeartsKeys) {
+    const value = mergedConfig[key] || '(未配置)';
+    const source = value !== '(未配置)' ? getConfigSource(key, cliOptions) : '';
+    const sourceInfo = source ? ` [来源: ${source}]` : '';
+    console.log(`  ${formatKeyName(key)}: ${value}${sourceInfo}`);
+  }
+
+  // 显示配置文件位置
+  console.log('\n【配置文件位置】');
+  if (globalConfigExists()) {
+    console.log(`  全局配置: ${getGlobalConfigPath()}`);
+  } else {
+    console.log(`  全局配置: (不存在)`);
+  }
+
+  const localEnvPath = path.resolve('.env');
+  if (fs.existsSync('.env')) {
+    console.log(`  当前目录: ${localEnvPath}`);
+  } else {
+    console.log(`  当前目录: (不存在)`);
+  }
+
+  // 显示配置优先级说明
+  console.log('\n【配置加载优先级】');
+  console.log('  命令行参数 > 当前目录 .env > 全局配置 > 默认值');
+
+  // 提示
+  if (!globalConfigExists() && !fs.existsSync('.env')) {
+    console.log('\n💡 提示: 未检测到任何配置文件，建议运行 `codearts config` 创建配置');
+  }
+
+  console.log('');
+}
+
+/**
+ * 格式化配置项名称（用于显示）
+ */
+function formatKeyName(key: string): string {
+  const nameMap: Record<string, string> = {
+    HUAWEI_CLOUD_IAM_ENDPOINT: 'IAM 认证端点',
+    HUAWEI_CLOUD_REGION: '华为云区域',
+    HUAWEI_CLOUD_USERNAME: 'IAM 用户名',
+    HUAWEI_CLOUD_PASSWORD: 'IAM 密码',
+    HUAWEI_CLOUD_DOMAIN: '华为云账号名',
+    CODEARTS_BASE_URL: 'CodeArts API 地址',
+    PROJECT_ID: '项目 ID',
+    ROLE_ID: '角色 ID',
+  };
+  return nameMap[key] || key;
 }

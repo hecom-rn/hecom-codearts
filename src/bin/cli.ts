@@ -7,6 +7,7 @@ import { bugCommand } from '../commands/bug.command';
 import {
   configCommand,
   getAvailableProjectConfigs,
+  showConfigCommand,
   updateProjectConfigCommand,
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
@@ -31,6 +32,15 @@ const configCmd = program
   .description('交互式配置向导，引导用户创建或更新全局配置文件\n\n')
   .action(async () => {
     await configCommand();
+  });
+
+// config show 子命令 - 显示当前配置
+configCmd
+  .command('show')
+  .description('显示当前配置信息')
+  .action(async () => {
+    const opts = program.opts();
+    await showConfigCommand(opts);
   });
 
 // 为每个项目配置项添加子命令

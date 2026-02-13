@@ -68,29 +68,58 @@ export function readGlobalConfig(): Record<string, string> {
 }
 
 /**
+ * 配置项分组和顺序定义
+ */
+const CONFIG_GROUPS = [
+  {
+    title: '华为云IAM认证端点（根据区域调整）',
+    keys: ['HUAWEI_CLOUD_IAM_ENDPOINT', 'HUAWEI_CLOUD_REGION'],
+  },
+  {
+    title: 'IAM用户凭证',
+    keys: ['HUAWEI_CLOUD_USERNAME', 'HUAWEI_CLOUD_PASSWORD', 'HUAWEI_CLOUD_DOMAIN'],
+  },
+  {
+    title: '项目配置',
+    keys: ['CODEARTS_BASE_URL', 'PROJECT_ID', 'ROLE_ID'],
+  },
+];
+
+/**
  * 写入全局配置
+ * 支持动态配置项，自动按分组组织配置文件
  */
 export function writeGlobalConfig(config: Record<string, string>): void {
   ensureConfigDir();
 
-  const content = `# Hecom CodeArts 全局配置文件
+  // 构建配置文件头部
+  let content = `# Hecom CodeArts 全局配置文件
 # 此文件由 codearts config 命令自动生成
 # 位置: ${CONFIG_FILE}
-
-# 华为云IAM认证端点（根据区域调整）
-HUAWEI_CLOUD_IAM_ENDPOINT=${config.iamEndpoint || ''}
-HUAWEI_CLOUD_REGION=${config.region || ''}
-
-# IAM用户凭证
-HUAWEI_CLOUD_USERNAME=${config.username || ''}
-HUAWEI_CLOUD_PASSWORD=${config.password || ''}
-HUAWEI_CLOUD_DOMAIN=${config.domain || ''}
-
-# 项目配置
-CODEARTS_BASE_URL=${config.codeartsUrl || ''}
-PROJECT_ID=${config.projectId || ''}
-ROLE_ID=${config.roleId || ''}
 `;
+
+  // 记录已写入的配置项
+  const writtenKeys = new Set<string>();
+
+  // 按分组写入配置
+  for (const group of CONFIG_GROUPS) {
+    content += `\n# ${group.title}\n`;
+    for (const key of group.keys) {
+      const value = config[key] || '';
+      content += `${key}=${value}\n`;
+      writtenKeys.add(key);
+    }
+  }
+
+  // 写入未分组的其他配置项（支持未来扩展）
+  const otherKeys = Object.keys(config).filter((key) => !writtenKeys.has(key));
+  if (otherKeys.length > 0) {
+    content += `\n# 其他配置\n`;
+    for (const key of otherKeys) {
+      const value = config[key] || '';
+      content += `${key}=${value}\n`;
+    }
+  }
 
   try {
     fs.writeFileSync(CONFIG_FILE, content, 'utf-8');
