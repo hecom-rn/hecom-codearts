@@ -36,9 +36,13 @@ export class Logger {
    * 信息日志（输出到 stdout）
    * json 模式下会被静默
    */
-  info(message: string, ...optionalParams: any[]): void {
+  info(message?: string, ...optionalParams: any[]): void {
     if (!this.silent) {
-      console.log(message, ...optionalParams);
+      if (message) {
+        console.log(message, ...optionalParams);
+      } else {
+        console.log();
+      }
     }
   }
 

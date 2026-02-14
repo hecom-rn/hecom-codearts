@@ -11,6 +11,7 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
+import { showLogo } from '../constant';
 import { configExists } from '../utils/config-loader';
 import { logger } from '../utils/logger';
 
@@ -33,6 +34,7 @@ const configCmd = program
   .command('config')
   .description('交互式配置向导，引导用户创建或更新全局配置文件')
   .action(async () => {
+    showLogo();
     await configCommand();
   });
 
@@ -41,6 +43,7 @@ configCmd
   .command('show')
   .description('显示当前配置信息')
   .action(async () => {
+    showLogo();
     await showConfigCommand();
   });
 
@@ -52,6 +55,7 @@ availableConfigs.forEach((configItem) => {
     .command(subCommandName)
     .description(`更新${configItem.label}`)
     .action(async () => {
+      showLogo();
       await updateProjectConfigCommand(configItem.key);
     });
 });
@@ -93,6 +97,7 @@ async function checkConfigAndRun() {
 
   // 如果没有参数（直接执行 codearts），检测配置
   if (args.length === 0) {
+    showLogo();
     // 检查是否有全局配置
     const hasConfig = configExists();
 
@@ -110,6 +115,16 @@ async function checkConfigAndRun() {
   // 有参数，正常解析命令
   program.parse();
 }
+
+process.on('uncaughtException', (error) => {
+  if (error instanceof Error && error.name === 'ExitPromptError') {
+    console.log('👋 操作取消!');
+    process.exit(0);
+  } else {
+    // 重新抛出未知错误
+    throw error;
+  }
+});
 
 checkConfigAndRun().catch((error) => {
   logger.error('执行失败: ', error);

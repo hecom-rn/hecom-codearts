@@ -1,0 +1,28 @@
+import { logger } from '../utils/logger';
+const LOGO_LINES = [
+  '██╗  ██╗███████╗ ██████╗ ██████╗ ███╗   ███╗',
+  '██║  ██║██╔════╝██╔════╝██╔═══██╗████╗ ████║',
+  '███████║█████╗  ██║     ██║   ██║██╔████╔██║',
+  '██╔══██║██╔══╝  ██║     ██║   ██║██║╚██╔╝██║',
+  '██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║',
+  '╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝',
+];
+
+const RESET = '\x1b[0m';
+
+// 256-color middle grays - visible on both light and dark backgrounds
+const GRAYS = [
+  '\x1b[38;5;250m', // lighter gray
+  '\x1b[38;5;248m',
+  '\x1b[38;5;245m', // mid gray
+  '\x1b[38;5;243m',
+  '\x1b[38;5;240m',
+  '\x1b[38;5;238m', // darker gray
+];
+export function showLogo(): void {
+  logger.info();
+  LOGO_LINES.forEach((line, i) => {
+    logger.info(`${GRAYS[i]}${line}${RESET}`);
+  });
+  logger.info();
+}

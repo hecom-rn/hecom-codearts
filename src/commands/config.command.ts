@@ -1,7 +1,8 @@
-import inquirer from 'inquirer';
+import { checkbox, confirm, input, password, select } from '@inquirer/prompts';
+import pc from 'picocolors';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
-import { ConfigKey, PartialConfigMap } from '../types';
+import { ConfigKey, PartialConfigMap, Project } from '../types';
 import {
   configExists,
   getConfig,
@@ -34,7 +35,20 @@ interface ProjectConfigItem {
     existingValue?: string
   ) => Promise<string>;
 }
-
+async function inputRoleIds(existingValue?: string): Promise<string> {
+  return await input({
+    message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
+    default: existingValue || '',
+    validate: (inputValue: string) => {
+      if (!inputValue.trim()) {
+        return '角色 ID 不能为空';
+      }
+      const ids = inputValue.split(',').map((id) => id.trim());
+      const allValid = ids.every((id) => /^\d+$/.test(id));
+      return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
+    },
+  });
+}
 /**
  * 配置角色 ID
  */
@@ -43,73 +57,55 @@ async function configureRoleIds(
   projectId: string,
   existingValue?: string
 ): Promise<string> {
+  let roles = [];
   try {
-    const roles = await businessService.getProjectRoles(projectId);
-
-    if (roles.length === 0) {
-      // 如果没有获取到角色，使用手动输入
-      const { manualRoleId } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'manualRoleId',
-          message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
-          default: existingValue || '',
-          validate: (input: string) => {
-            if (!input.trim()) {
-              return '角色 ID 不能为空';
-            }
-            const ids = input.split(',').map((id) => id.trim());
-            const allValid = ids.every((id) => /^\d+$/.test(id));
-            return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
-          },
-        },
-      ]);
-      return manualRoleId;
-    } else {
-      // 使用多选框选择角色
-      const roleChoices = roles.map((role) => ({
-        name: `${role.role_name} (${role.role_id})`,
-        value: role.role_id.toString(),
-        checked: existingValue ? existingValue.split(',').includes(role.role_id.toString()) : false,
-      }));
-
-      const { selectedRoleIds } = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          name: 'selectedRoleIds',
-          message: '请选择角色：',
-          choices: roleChoices,
-          validate: (input: string[]) => {
-            if (input.length === 0) {
-              return '至少选择一个角色';
-            }
-            return true;
-          },
-        },
-      ]);
-
-      return selectedRoleIds.join(',');
-    }
+    roles = await businessService.getProjectRoles(projectId);
   } catch (error) {
     logger.error('❌ 获取角色列表失败:', error);
     // 如果获取失败，使用手动输入
-    const { manualRoleId } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'manualRoleId',
-        message: '角色 ID（支持逗号分隔，如: 1,2,3）:',
-        default: existingValue || '',
-        validate: (input: string) => {
-          if (!input.trim()) {
-            return '角色 ID 不能为空';
-          }
-          const ids = input.split(',').map((id) => id.trim());
-          const allValid = ids.every((id) => /^\d+$/.test(id));
-          return allValid ? true : '角色 ID 必须是数字或逗号分隔的数字列表';
+    return await inputRoleIds(existingValue);
+  }
+  if (roles.length === 0) {
+    // 如果没有获取到角色，使用手动输入
+    return await inputRoleIds(existingValue);
+  } else {
+    // 使用多选框选择角色
+    const roleChoices = roles.map((role) => ({
+      name: `${role.role_name} (${role.role_id})`,
+      value: role.role_id.toString(),
+      checked: existingValue ? existingValue.split(',').includes(role.role_id.toString()) : false,
+    }));
+
+    const selectedRoleIds = await checkbox({
+      message: '请选择角色：',
+      choices: roleChoices,
+      validate: (answer) => {
+        if (answer.length === 0) {
+          return '至少需要选择一个角色';
+        }
+        return true;
+      },
+      theme: {
+        style: {
+          help: (text: string) => `\x1b[90m${123}\x1b[0m`, // 灰色
+          keysHelpTip: (keys: [key: string, action: string][]) => {
+            const actionMap: Record<string, string> = {
+              navigate: '上下移动',
+              select: '选择/取消',
+              all: '全选',
+              invert: '反选',
+              submit: '提交',
+            };
+            const tips = keys.map(
+              ([key, action]) => `${key} \x1b[90m${actionMap[action] || action}\x1b[0m`
+            );
+            return tips.join(' • ');
+          },
         },
       },
-    ]);
-    return manualRoleId;
+    });
+
+    return selectedRoleIds.join(',');
   }
 }
 
@@ -130,28 +126,30 @@ const PROJECT_CONFIG_ITEMS: ProjectConfigItem[] = [
   //   configure: configureCustomField,
   // },
 ];
-
+async function inputPassword(): Promise<string> {
+  return await password({
+    message: 'IAM 密码:',
+    mask: '*',
+    validate: (inputValue: string) => (inputValue.trim() ? true : 'IAM 密码不能为空'),
+  });
+}
 /**
  * 交互式配置向导命令
  * 引导用户创建或更新全局配置文件
  */
 export async function configCommand(): Promise<void> {
-  logger.info('\n欢迎使用 Hecom CodeArts 配置向导');
+  logger.info('欢迎使用 Hecom CodeArts 配置向导');
   logger.info('='.repeat(60));
-  logger.info('此向导将帮助您配置华为云 CodeArts API 访问凭证。');
+  logger.info('此向导将帮助您配置华为云 CodeArts API 访问凭证以及项目相关设置');
   logger.info(`配置将保存到: ${getConfigPath()}\n`);
 
   const existingConfig = configExists() ? readConfig() : {};
 
   if (configExists()) {
-    const { overwrite } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'overwrite',
-        message: '检测到已存在全局配置，是否覆盖？',
-        default: false,
-      },
-    ]);
+    const overwrite = await confirm({
+      message: '检测到已存在全局配置，是否覆盖？',
+      default: true,
+    });
 
     if (!overwrite) {
       logger.info('\n已取消配置。');
@@ -172,55 +170,54 @@ export async function configCommand(): Promise<void> {
   };
 
   while (!credentialsValid) {
-    iamAnswers = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'iamEndpoint',
+    iamAnswers = {
+      iamEndpoint: await input({
         message: 'IAM 认证端点:',
         default:
           existingConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT] ||
           'https://iam.cn-north-4.myhuaweicloud.com',
-        validate: (input: string) => (input.trim() ? true : 'IAM 认证端点不能为空'),
-      },
-      {
-        type: 'input',
-        name: 'region',
+        validate: (inputValue: string) => (inputValue.trim() ? true : 'IAM 认证端点不能为空'),
+      }),
+      region: await input({
         message: '华为云区域:',
         default: existingConfig[ConfigKey.HUAWEI_CLOUD_REGION] || 'cn-north-4',
-        validate: (input: string) => (input.trim() ? true : '华为云区域不能为空'),
-      },
-      {
-        type: 'input',
-        name: 'codeartsUrl',
+        validate: (inputValue: string) => (inputValue.trim() ? true : '华为云区域不能为空'),
+      }),
+      codeartsUrl: await input({
         message: 'CodeArts API 地址:',
         default:
           existingConfig[ConfigKey.CODEARTS_BASE_URL] ||
           'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
-        validate: (input: string) => (input.trim() ? true : 'CodeArts API 地址不能为空'),
-      },
-      {
-        type: 'input',
-        name: 'domain',
+        validate: (inputValue: string) => (inputValue.trim() ? true : 'CodeArts API 地址不能为空'),
+      }),
+      domain: await input({
         message: '华为云账号名:',
         default: existingConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN] || '',
-        validate: (input: string) => (input.trim() ? true : '华为云账号名不能为空'),
-      },
-      {
-        type: 'input',
-        name: 'username',
+        validate: (inputValue: string) => (inputValue.trim() ? true : '华为云账号名不能为空'),
+      }),
+      username: await input({
         message: 'IAM 用户名:',
         default: existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME] || '',
-        validate: (input: string) => (input.trim() ? true : 'IAM 用户名不能为空'),
-      },
-      {
-        type: 'password',
-        name: 'password',
-        message: 'IAM 密码:',
-        mask: '*',
-        default: existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD] || '',
-        validate: (input: string) => (input.trim() ? true : 'IAM 密码不能为空'),
-      },
-    ]);
+        validate: (inputValue: string) => (inputValue.trim() ? true : 'IAM 用户名不能为空'),
+      }),
+      password: '',
+    };
+
+    // 处理密码：如果存在旧密码，询问是否重用
+    if (existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]) {
+      const useExistingPassword = await confirm({
+        message: 'IAM 密码: 是否使用已保存的密码？',
+        default: true,
+      });
+
+      if (useExistingPassword) {
+        iamAnswers.password = existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]!;
+      } else {
+        iamAnswers.password = await inputPassword();
+      }
+    } else {
+      iamAnswers.password = await inputPassword();
+    }
 
     // 创建 BusinessService 实例
     businessService = new BusinessService({
@@ -242,14 +239,10 @@ export async function configCommand(): Promise<void> {
       const errorMessage = `❌ IAM 凭证验证失败: ${validationResult.error}\n`;
       logger.error(errorMessage);
 
-      const { retry } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'retry',
-          message: '是否重新配置 IAM 凭证？',
-          default: true,
-        },
-      ]);
+      const retry = await confirm({
+        message: '是否重新配置 IAM 凭证？',
+        default: true,
+      });
 
       if (!retry) {
         logger.info('\n已取消配置。');
@@ -266,53 +259,43 @@ export async function configCommand(): Promise<void> {
 
   // 第二阶段：获取项目列表并选择项目
   let projectId: string;
+  let projects: Project[] = [];
+
+  async function inputProjectId(): Promise<string> {
+    return await input({
+      message: '项目 ID:',
+      default: existingConfig[ConfigKey.PROJECT_ID] || '',
+      validate: (inputValue: string) => (inputValue.trim() ? true : '项目 ID 不能为空'),
+    });
+  }
 
   try {
-    const projects = await businessService!.getProjects(100);
-
-    if (projects.length === 0) {
-      const { manualProjectId } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'manualProjectId',
-          message: '项目 ID:',
-          default: existingConfig[ConfigKey.PROJECT_ID] || '',
-          validate: (input: string) => (input.trim() ? true : '项目 ID 不能为空'),
-        },
-      ]);
-      projectId = manualProjectId;
-    } else {
-      const projectChoices = projects.map((p) => ({
-        name: `${p.project_name} (${p.project_id})`,
-        value: p.project_id,
-      }));
-
-      const { selectedProjectId } = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'selectedProjectId',
-          message: '请选择项目:',
-          choices: projectChoices,
-          default: existingConfig[ConfigKey.PROJECT_ID] || projectChoices[0]?.value,
-        },
-      ]);
-      projectId = selectedProjectId;
-    }
+    projects = await businessService!.getProjects(100);
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(`❌ 获取项目列表失败: `, error);
-
     // 获取失败，使用手动输入
-    const { manualProjectId } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'manualProjectId',
-        message: '项目 ID:',
-        default: existingConfig[ConfigKey.PROJECT_ID] || '',
-        validate: (input: string) => (input.trim() ? true : '项目 ID 不能为空'),
-      },
-    ]);
-    projectId = manualProjectId;
+    projectId = await inputProjectId();
+  }
+
+  if (projects.length === 0) {
+    projectId = await inputProjectId();
+  } else {
+    const projectChoices = projects.map((p) => ({
+      name: `${p.project_name} (${p.project_id})`,
+      value: p.project_id,
+    }));
+
+    // 确定默认项目 ID
+    const existingProjectId = existingConfig[ConfigKey.PROJECT_ID];
+    const isExistingProjectValid =
+      existingProjectId && projects.some((p) => p.project_id === existingProjectId);
+    const defaultProjectId = isExistingProjectValid ? existingProjectId : projectChoices[0]?.value;
+
+    projectId = await select({
+      message: '请选择项目:',
+      choices: projectChoices,
+      default: defaultProjectId,
+    });
   }
 
   // 第三阶段：配置项目相关配置
@@ -375,20 +358,6 @@ export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<
   // 读取现有配置
   const existingConfig = readConfig();
 
-  // 检查必要的配置是否存在
-  if (
-    !existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME] ||
-    !existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]
-  ) {
-    logger.error('\n❌ 全局配置不完整，请先运行 `npx @hecom/codearts config` 完成配置。');
-    process.exit(1);
-  }
-
-  if (!existingConfig[ConfigKey.PROJECT_ID]) {
-    logger.error('\n❌ 项目 ID 未配置，请先运行 `npx @hecom/codearts config` 完成配置。');
-    process.exit(1);
-  }
-
   // 创建 BusinessService 实例
   const businessService = new BusinessService({
     iamEndpoint: existingConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]!,
@@ -439,7 +408,7 @@ export async function showConfigCommand(): Promise<void> {
   const config = getConfig();
 
   // 按类别显示配置
-  logger.info('\n【华为云 IAM 凭证】');
+  logger.info(pc.cyan('【华为云 IAM 凭证】'));
   const iamKeys: ConfigKey[] = [
     ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT,
     ConfigKey.HUAWEI_CLOUD_REGION,
@@ -452,8 +421,8 @@ export async function showConfigCommand(): Promise<void> {
     const displayValue = key.includes('PASSWORD') && value !== '(未配置)' ? '********' : value;
     logger.info(`  ${formatKeyName(key)}: ${displayValue}`);
   }
-
-  logger.info('\n【CodeArts 配置】');
+  logger.info();
+  logger.info(pc.cyanBright('【CodeArts 配置】'));
   const codeartsKeys: ConfigKey[] = [
     ConfigKey.CODEARTS_BASE_URL,
     ConfigKey.PROJECT_ID,

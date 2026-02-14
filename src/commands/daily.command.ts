@@ -1,3 +1,4 @@
+import pc from 'picocolors';
 import { BusinessService } from '../services/business.service';
 import { WorkHour } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
@@ -256,7 +257,13 @@ async function queryDailyReportData(
     totalHours: dailyStats.totalHours,
   };
 }
-
+function issueTypeColor(type: string): string {
+  const issueTypeColorMap: Record<string, (text: string) => string> = {
+    任务: pc.bgCyan,
+    缺陷: pc.bgRed,
+  };
+  return issueTypeColorMap[type] ? issueTypeColorMap[type](type) : pc.bgGreen(type);
+}
 /**
  * 控制台输出日报（多角色统一汇总）
  */
@@ -289,23 +296,23 @@ function outputConsole(allReports: DailyReportData[], showReport: boolean = fals
   });
 
   logger.info('='.repeat(80));
-
   // 平铺所有用户的工时明细
   allReports.forEach((report) => {
     report.userStats.forEach((userStat) => {
-      logger.info(`\n\x1b[31m${userStat.userName} ${userStat.totalHours}小时\x1b[0m`);
+      logger.info();
+      logger.info(pc.red(`${userStat.userName} ${userStat.totalHours}小时`));
       userStat.workHours
         .sort((a, b) => a.issueType.localeCompare(b.issueType))
         .forEach((workHour) => {
           const summaryPart =
             workHour.summary && workHour.summary.trim() !== ''
-              ? ` \x1b[36m${workHour.summary}\x1b[0m`
+              ? pc.cyan(` ${workHour.summary}`)
               : '';
           const workHoursTypePart = workHour.workHoursTypeName
             ? ` (${workHour.workHoursTypeName})`
             : '';
           logger.info(
-            `  [${workHour.issueType}]${workHour.subject}${summaryPart} ${workHoursTypePart} ${workHour.workHoursNum}小时`
+            `  ${issueTypeColor(workHour.issueType)} ${workHour.subject}${summaryPart} ${workHoursTypePart} ${workHour.workHoursNum}小时`
           );
         });
     });
