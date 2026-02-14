@@ -1,11 +1,12 @@
 import { BusinessService } from '../services/business.service';
-import { DefectAnalysisType, IssueItemV2 } from '../types';
+import { ConsoleTotal, DefectAnalysisType, IssueItemV2 } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
+import { consoleTotal } from '../utils/console';
 import { escapeCsv, writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
-interface BugStats {
-  assignedUser: string;
+interface UserStats {
+  userName: string;
   userId: number;
   totalBugCount: number;
   productBugCount: number;
@@ -13,22 +14,10 @@ interface BugStats {
   stories: Array<{
     storyName: string;
     storyId: number;
+    iterationName: string;
     totalBugCount: number;
     productBugCount: number;
   }>;
-}
-
-interface BugReportData {
-  iterations: string[];
-  roleIds: number[];
-  roleNames: string[];
-  userStats: BugStats[];
-  summary: {
-    totalBugs: number;
-    totalProductBugs: number;
-    overallProductDefectRate: number;
-    userCount: number;
-  };
 }
 
 /**
@@ -55,62 +44,26 @@ async function queryBugReportData(
   projectId: string,
   roleIds: number[],
   iterationTitles: string[]
-): Promise<BugReportData> {
+): Promise<ConsoleTotal<UserStats>> {
   const roleNames = new Set<string>();
   const targetMemberIds = new Set<number>();
-  if (roleIds.length > 0) {
-    for (const roleId of roleIds) {
-      const members = await businessService.getMembersByRoleId(projectId, roleId);
-      members.forEach((member) => {
-        targetMemberIds.add(member.user_num_id);
-        roleNames.add(member.role_name);
-      });
-    }
-  }
 
-  const stories = await businessService.getStoriesByIterationTitles(projectId, iterationTitles);
+  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
 
-  if (stories.length === 0) {
-    return {
-      iterations: iterationTitles,
-      roleIds,
-      roleNames: Array.from(roleNames),
-      userStats: [],
-      summary: {
-        totalBugs: 0,
-        totalProductBugs: 0,
-        overallProductDefectRate: 0,
-        userCount: 0,
-      },
-    };
-  }
+  members.forEach((member) => {
+    targetMemberIds.add(member.user_num_id);
+    roleNames.add(member.role_name);
+  });
 
-  const filteredStories =
-    roleIds.length > 0
-      ? stories.filter((story) => {
-          const assignedUserId = story.assigned_user?.id;
-          return assignedUserId && targetMemberIds.has(assignedUserId);
-        })
-      : stories;
+  const stories = await businessService.getStoriesByIterationTitles(
+    projectId,
+    iterationTitles,
+    members.map((m) => m.user_id)
+  );
 
-  if (filteredStories.length === 0) {
-    return {
-      iterations: iterationTitles,
-      roleIds,
-      roleNames: Array.from(roleNames),
-      userStats: [],
-      summary: {
-        totalBugs: 0,
-        totalProductBugs: 0,
-        overallProductDefectRate: 0,
-        userCount: 0,
-      },
-    };
-  }
+  const bugStatsMap = new Map<number, UserStats>();
 
-  const bugStatsMap = new Map<number, BugStats>();
-
-  for (const story of filteredStories) {
+  for (const story of stories) {
     const childIssues = await businessService.getChildIssues(projectId, String(story.id));
 
     const allBugs = childIssues.filter((issue) => issue.tracker.id === 3);
@@ -130,7 +83,7 @@ async function queryBugReportData(
 
     if (!bugStatsMap.has(assignedUserId)) {
       bugStatsMap.set(assignedUserId, {
-        assignedUser: assignedUserName,
+        userName: assignedUserName,
         userId: assignedUserId,
         totalBugCount: 0,
         productBugCount: 0,
@@ -145,6 +98,7 @@ async function queryBugReportData(
     userStats.stories.push({
       storyName: story.name,
       storyId: story.id,
+      iterationName: story.iteration?.name,
       totalBugCount: allBugs.length,
       productBugCount: productBugs.length,
     });
@@ -173,39 +127,34 @@ async function queryBugReportData(
     totalBugs > 0 ? Math.round((totalProductBugs / totalBugs) * 100 * 100) / 100 : 0;
 
   return {
-    iterations: iterationTitles,
-    roleIds,
+    title: '产品缺陷率统计',
     roleNames: Array.from(roleNames),
-    userStats: sortedStats,
-    summary: {
-      totalBugs,
-      totalProductBugs,
-      overallProductDefectRate,
-      userCount: sortedStats.length,
-    },
+    list: sortedStats,
+    totalMap: [
+      ['产品缺陷率', `${overallProductDefectRate.toFixed(2)}%`],
+      ['总 Bug 数', `${totalBugs}个`],
+      ['产品问题数', `${totalProductBugs}个`],
+      ['统计人数', `${sortedStats.length}人`],
+      ['统计迭代', `${iterationTitles.join(', ')}`],
+    ],
   };
 }
 
 /**
  * 控制台输出产品缺陷率统计
  */
-function outputConsole(data: BugReportData): void {
-  logger.info(`产品缺陷率统计 [${data.roleNames.join(', ')}]`);
-  logger.info('='.repeat(80));
-  logger.info(`产品缺陷率: ${data.summary.overallProductDefectRate.toFixed(2)}% `);
-  logger.info(`总 Bug 数: ${data.summary.totalBugs}个`);
-  logger.info(`产品问题: ${data.summary.totalProductBugs}个`);
-  logger.info(`统计人数: ${data.summary.userCount}人`);
-  logger.info(`统计迭代: ${data.iterations.join(', ')}`);
-  logger.info('='.repeat(80));
+function outputConsole(data: ConsoleTotal<UserStats>): void {
+  consoleTotal(data);
 
-  data.userStats.forEach((stats) => {
+  data.list.forEach((stats) => {
     logger.info(
-      `\x1b[31m${stats.assignedUser}: ${stats.productDefectRate.toFixed(2)}% (${stats.productBugCount}/${stats.totalBugCount})\x1b[0m`
+      `\x1b[31m${stats.userName}: ${stats.productDefectRate.toFixed(2)}% (${stats.productBugCount}/${stats.totalBugCount})\x1b[0m`
     );
 
     stats.stories.forEach((story) => {
-      logger.info(`  ${story.storyName} (${story.productBugCount}/${story.totalBugCount})`);
+      logger.info(
+        `  [${story.iterationName}] ${story.storyName} (${story.productBugCount}/${story.totalBugCount})`
+      );
     });
 
     logger.info('');
@@ -215,18 +164,18 @@ function outputConsole(data: BugReportData): void {
 /**
  * CSV 文件输出
  */
-function outputCsv(data: BugReportData, iterationTitles: string[]): void {
+function outputCsv(list: UserStats[], iterationTitles: string[]): void {
   const csvLines: string[] = [];
   csvLines.push('迭代,处理人,Story名称,StoryID,总Bug数,产品问题Bug数,产品缺陷率');
 
-  data.userStats.forEach((userStat) => {
+  list.forEach((userStat) => {
     userStat.stories.forEach((story) => {
       const defectRate =
         story.totalBugCount > 0
           ? ((story.productBugCount / story.totalBugCount) * 100).toFixed(2)
           : '0.00';
       csvLines.push(
-        `"${escapeCsv(data.iterations.join(', '))}",${userStat.assignedUser ?? ''},"${escapeCsv(story.storyName ?? '')}",${story.storyId ?? ''},${story.totalBugCount ?? ''},${story.productBugCount ?? ''},${defectRate}%`
+        `"${escapeCsv(story.iterationName)}",${userStat.userName ?? ''},"${escapeCsv(story.storyName ?? '')}",${story.storyId ?? ''},${story.totalBugCount ?? ''},${story.productBugCount ?? ''},${defectRate}%`
       );
     });
   });
@@ -238,7 +187,7 @@ function outputCsv(data: BugReportData, iterationTitles: string[]): void {
 /**
  * JSON 输出（直接打印到控制台，供编程调用）
  */
-function outputJson(data: BugReportData): void {
+function outputJson(data: UserStats[]): void {
   logger.json(data);
 }
 
@@ -272,9 +221,9 @@ export async function bugCommand(
     if (outputFormat === 'console') {
       outputConsole(reportData);
     } else if (outputFormat === 'csv') {
-      outputCsv(reportData, iterationTitles);
+      outputCsv(reportData.list, iterationTitles);
     } else if (outputFormat === 'json') {
-      outputJson(reportData);
+      outputJson(reportData.list);
     }
   } catch (error) {
     logger.error(`执行过程中发生错误: `, error);

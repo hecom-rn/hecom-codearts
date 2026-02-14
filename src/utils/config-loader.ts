@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ConfigKey, HuaweiCloudConfig, OutputFormat, PartialConfigMap } from '../types';
+import { ConfigKey, ConfigMap, HuaweiCloudConfig, OutputFormat } from '../types';
 
 /**
  * 全局配置管理工具
@@ -37,12 +37,12 @@ export function configExists(): boolean {
 /**
  * 读取全局配置
  */
-export function readConfig(): PartialConfigMap {
+export function readConfig(): Partial<ConfigMap> {
   if (!configExists()) {
     return {};
   }
 
-  const config: Record<string, string> = {};
+  const config: Partial<ConfigMap> = {};
 
   try {
     const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
@@ -60,7 +60,7 @@ export function readConfig(): PartialConfigMap {
         const value = trimmedLine.substring(equalIndex + 1).trim();
         // 只保存合法的配置键
         if (Object.values(ConfigKey).includes(key as ConfigKey)) {
-          config[key] = value;
+          config[key as ConfigKey] = value;
         }
       }
     }
@@ -68,7 +68,7 @@ export function readConfig(): PartialConfigMap {
     console.error('读取全局配置文件失败:', error);
   }
 
-  return config as PartialConfigMap;
+  return config;
 }
 
 /**
@@ -97,7 +97,7 @@ const CONFIG_GROUPS = [
  * 写入全局配置
  * 支持动态配置项，自动按分组组织配置文件
  */
-export function writeConfig(config: PartialConfigMap): void {
+export function writeConfig(config: Partial<ConfigMap>): void {
   ensureConfigDir();
 
   // 构建配置文件头部
@@ -219,6 +219,6 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
  * 获取最终合并后的配置（用于显示）
  * @returns 合并后的配置映射
  */
-export function getConfig(): PartialConfigMap {
+export function getConfig(): Partial<ConfigMap> {
   return globalConfig;
 }

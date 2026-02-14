@@ -11,7 +11,7 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
-import { showLogo } from '../constant';
+import { showLogo } from '../utils/console';
 import { configExists } from '../utils/config-loader';
 import { logger } from '../utils/logger';
 

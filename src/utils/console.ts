@@ -1,3 +1,4 @@
+import { ConsoleTotal } from '../types';
 import { logger } from '../utils/logger';
 const LOGO_LINES = [
   '██╗  ██╗███████╗ ██████╗ ██████╗ ███╗   ███╗',
@@ -25,4 +26,17 @@ export function showLogo(): void {
     logger.info(`${GRAYS[i]}${line}${RESET}`);
   });
   logger.info();
+}
+
+export function consoleTotal<T>(total: ConsoleTotal<T>): void {
+  logger.info(`${total.title} [${total.roleNames.join(', ')}]`);
+  logger.info('='.repeat(80));
+  total.totalMap.forEach(([key, value]) => {
+    if (typeof value === 'function') {
+      logger.info(`${key}: ${value()}`);
+    } else {
+      logger.info(`${key}: ${value}`);
+    }
+  });
+  logger.info('='.repeat(80));
 }

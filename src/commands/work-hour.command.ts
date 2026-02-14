@@ -1,7 +1,8 @@
 import { calculateExpectedWorkdays } from '../config/holidays';
 import { BusinessService } from '../services/business.service';
-import { ProjectMember, UserAllWorkHourStats } from '../types';
+import { ConsoleTotal, ProjectMember, UserAllWorkHourStats } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
+import { consoleTotal } from '../utils/console';
 import { writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
@@ -17,31 +18,11 @@ interface UserWithRole extends UserAllWorkHourStats {
   roleId: number;
 }
 
-interface WorkHourReportData {
-  year: string;
-  roleCount: number;
-  memberCount: number;
-  expectedWorkdays: number;
-  expectedHours: number;
-  actualHours: number;
-  completionRate: number;
-  entryCount: number;
-  userStats: Array<{
-    userName: string;
-    roleName: string;
-    roleId: number;
-    domainStats: Record<string, number>;
-    total: number;
-  }>;
-  roleSubtotals: Array<{
-    roleName: string;
-    domainStats: Record<string, number>;
-    total: number;
-  }>;
-  grandTotal: {
-    domainStats: Record<string, number>;
-    total: number;
-  };
+interface UserStats {
+  userName: string;
+  roleName: string;
+  domainStats: Record<string, number>;
+  total: number;
 }
 
 /**
@@ -52,43 +33,41 @@ async function queryWorkHourReportData(
   projectId: string,
   roleIds: number[],
   targetYear: string
-): Promise<WorkHourReportData> {
-  const allMembers: ProjectMember[] = [];
+): Promise<ConsoleTotal<UserStats>> {
+  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+
+  const userIds = members.map((member) => member.user_id);
+
+  const stats = await businessService.getAllWorkHourStats(
+    projectId,
+    userIds,
+    `${targetYear}-01-01`,
+    `${targetYear}-12-31`
+  );
+
+  // 创建用户ID到成员信息的映射
+  const userIdToMember = new Map<string, ProjectMember>();
+  members.forEach((member) => {
+    userIdToMember.set(member.user_id, member);
+  });
+
   const allUserStats: UserWithRole[] = [];
   const allTypes = new Set<string>();
 
-  for (const roleId of roleIds) {
-    const roleMembers = await businessService.getMembersByRoleId(projectId, roleId);
-
-    if (roleMembers.length === 0) {
-      logger.warn(`角色ID ${roleId} 未找到用户，跳过`);
-      continue;
-    }
-
-    const roleName = roleMembers[0].role_name;
-    allMembers.push(...roleMembers);
-
-    const roleUserIds = roleMembers.map((member) => member.user_id);
-
-    const stats = await businessService.getAllWorkHourStats(
-      projectId,
-      roleUserIds,
-      `${targetYear}-01-01`,
-      `${targetYear}-12-31`
-    );
-
-    stats.userStats.forEach((userStat) => {
+  stats.userStats.forEach((userStat) => {
+    const member = userIdToMember.get(userStat.userId);
+    if (member) {
       allUserStats.push({
         ...userStat,
-        roleName,
-        roleId,
+        roleName: member.role_name,
+        roleId: member.role_id,
       });
 
       userStat.domainStats.forEach((domainStat) => {
         allTypes.add(domainStat.type);
       });
-    });
-  }
+    }
+  });
 
   allUserStats.sort((a, b) => {
     if (a.roleId !== b.roleId) {
@@ -99,51 +78,15 @@ async function queryWorkHourReportData(
 
   const expectedWorkdays = calculateExpectedWorkdays(targetYear);
   const expectedHoursPerPerson = expectedWorkdays * 8;
-  const totalExpectedHours = expectedHoursPerPerson * allMembers.length;
+  const totalExpectedHours = expectedHoursPerPerson * members.length;
 
   const totalHours = roundToTwo(
     allUserStats.reduce((sum, userStat) => sum + userStat.totalHours, 0)
   );
-  const totalEntries = allUserStats.reduce(
-    (sum, userStat) => sum + userStat.domainStats.reduce((s, d) => s + d.workHours.length, 0),
-    0
-  );
 
-  const userStatsData: WorkHourReportData['userStats'] = [];
-  const roleSubtotals: WorkHourReportData['roleSubtotals'] = [];
-  const typeTotals: Record<string, number> = {};
+  const userStatsData: UserStats[] = [];
 
-  allTypes.forEach((type) => {
-    typeTotals[type] = 0;
-  });
-
-  let currentRoleId: number | null = null;
-  let currentRoleName = '';
-  const roleSubtotalStats: Record<string, number> = {};
-
-  allUserStats.forEach((userStat, index) => {
-    if (currentRoleId !== null && currentRoleId !== userStat.roleId) {
-      const subtotalDomainStats: Record<string, number> = {};
-      let subtotal = 0;
-      allTypes.forEach((type) => {
-        subtotalDomainStats[type] = roleSubtotalStats[type] || 0;
-        subtotal = roundToTwo(subtotal + (roleSubtotalStats[type] || 0));
-      });
-
-      roleSubtotals.push({
-        roleName: currentRoleName,
-        domainStats: subtotalDomainStats,
-        total: subtotal,
-      });
-
-      Object.keys(roleSubtotalStats).forEach((key) => {
-        roleSubtotalStats[key] = 0;
-      });
-    }
-
-    currentRoleId = userStat.roleId;
-    currentRoleName = userStat.roleName;
-
+  allUserStats.forEach((userStat) => {
     const domainStats: Record<string, number> = {};
     allTypes.forEach((type) => {
       domainStats[type] = 0;
@@ -153,82 +96,40 @@ async function queryWorkHourReportData(
     userStat.domainStats.forEach((domainStat) => {
       domainStats[domainStat.type] = domainStat.totalHours;
       userTotal = roundToTwo(userTotal + domainStat.totalHours);
-      typeTotals[domainStat.type] = roundToTwo(typeTotals[domainStat.type] + domainStat.totalHours);
-
-      if (!roleSubtotalStats[domainStat.type]) {
-        roleSubtotalStats[domainStat.type] = 0;
-      }
-      roleSubtotalStats[domainStat.type] = roundToTwo(
-        roleSubtotalStats[domainStat.type] + domainStat.totalHours
-      );
     });
 
     userStatsData.push({
       userName: userStat.userName,
       roleName: userStat.roleName,
-      roleId: userStat.roleId,
       domainStats,
       total: userTotal,
     });
-
-    if (index === allUserStats.length - 1) {
-      const subtotalDomainStats: Record<string, number> = {};
-      let subtotal = 0;
-      allTypes.forEach((type) => {
-        subtotalDomainStats[type] = roleSubtotalStats[type] || 0;
-        subtotal = roundToTwo(subtotal + (roleSubtotalStats[type] || 0));
-      });
-
-      roleSubtotals.push({
-        roleName: currentRoleName,
-        domainStats: subtotalDomainStats,
-        total: subtotal,
-      });
-    }
-  });
-
-  const grandTotalDomainStats: Record<string, number> = {};
-  let grandTotal = 0;
-  allTypes.forEach((type) => {
-    grandTotalDomainStats[type] = typeTotals[type];
-    grandTotal = roundToTwo(grandTotal + typeTotals[type]);
   });
 
   return {
-    year: targetYear,
-    roleCount: roleIds.length,
-    memberCount: allMembers.length,
-    expectedWorkdays,
-    expectedHours: totalExpectedHours,
-    actualHours: totalHours,
-    completionRate: (totalHours / totalExpectedHours) * 100,
-    entryCount: totalEntries,
-    userStats: userStatsData,
-    roleSubtotals,
-    grandTotal: {
-      domainStats: grandTotalDomainStats,
-      total: grandTotal,
-    },
+    title: `${targetYear}年工时统计`,
+    roleNames: Array.from(new Set(members.map((m) => m.role_name))),
+    totalMap: [
+      ['统计人数', `${members.length} 人`],
+      ['应计工日', `${expectedWorkdays} 天`],
+      ['应计工时', `${totalExpectedHours} 小时`],
+      ['实际工时', `${totalHours} 小时`],
+      ['工时完成率', `${((totalHours / totalExpectedHours) * 100).toFixed(2)}%`],
+    ],
+    list: userStatsData,
   };
 }
 
 /**
  * 控制台输出工时统计
  */
-function outputConsole(data: WorkHourReportData): void {
-  logger.info(`\n${data.year}年工时统计 [${data.roleSubtotals.map((r) => r.roleName).join(', ')}]`);
-  logger.info('='.repeat(80));
-  logger.info(`统计人数: ${data.memberCount} 人`);
-  logger.info(`应计工作日: ${data.expectedWorkdays} 天`);
-  logger.info(`应计工时: ${data.expectedHours} 小时`);
-  logger.info(`实际工时: ${data.actualHours} 小时`);
-  logger.info(`工时完成率: ${data.completionRate.toFixed(2)}%`);
-  logger.info('='.repeat(80));
+function outputConsole(data: ConsoleTotal<UserStats>): void {
+  consoleTotal(data);
 
   // 构建表格数据
   const tableData: Record<string, Record<string, string | number>> = {};
 
-  data.userStats.forEach((userStat) => {
+  data.list.forEach((userStat) => {
     const row: Record<string, string | number> = {
       ...userStat.domainStats,
       合计: userStat.total,
@@ -236,24 +137,18 @@ function outputConsole(data: WorkHourReportData): void {
     tableData[userStat.userName] = row;
   });
 
-  // 添加总计行
-  tableData['总计'] = {
-    ...data.grandTotal.domainStats,
-    合计: data.grandTotal.total,
-  };
-
   logger.table(tableData);
 }
 
 /**
  * CSV 文件输出
  */
-function outputCsv(data: WorkHourReportData, targetYear: string): void {
-  const domains = Object.keys(data.grandTotal.domainStats);
+function outputCsv(list: UserStats[], targetYear: string): void {
+  const domains = Object.keys(list[0].domainStats);
   const csvLines: string[] = [];
   csvLines.push(`用户,角色,${domains.join(',')},合计`);
 
-  data.userStats.forEach((userStat) => {
+  list.forEach((userStat) => {
     const domainValues = domains.map((domain) => userStat.domainStats[domain] || 0);
     csvLines.push(
       `${userStat.userName},${userStat.roleName},${domainValues.join(',')},${userStat.total}`
@@ -267,7 +162,7 @@ function outputCsv(data: WorkHourReportData, targetYear: string): void {
 /**
  * JSON 输出（直接打印到控制台，供编程调用）
  */
-function outputJson(data: WorkHourReportData): void {
+function outputJson(data: UserStats[]): void {
   logger.json(data);
 }
 
@@ -292,9 +187,9 @@ export async function workHourCommand(year?: string, cliOptions: CliOptions = {}
     if (outputFormat === 'console') {
       outputConsole(reportData);
     } else if (outputFormat === 'csv') {
-      outputCsv(reportData, targetYear);
+      outputCsv(reportData.list, targetYear);
     } else if (outputFormat === 'json') {
-      outputJson(reportData);
+      outputJson(reportData.list);
     }
   } catch (error) {
     logger.error(`执行过程中发生错误:`, error);

@@ -1,31 +1,37 @@
 import pc from 'picocolors';
+import { isWorkday } from '../config/holidays';
 import { BusinessService } from '../services/business.service';
-import { WorkHour } from '../types';
+import { ConsoleTotal } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
+import { consoleTotal } from '../utils/console';
 import { escapeCsv, writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
-function isBug(workHour: WorkHour): boolean {
+function isBug(workHour: UserStats['workHours'][number]): boolean {
   return (
-    workHour.issue_type === '缺陷' || workHour.issue_type === '3' || workHour.issue_type === 'Bug'
+    workHour.issueType === '缺陷' || workHour.issueType === '3' || workHour.issueType === 'Bug'
   );
 }
 
-interface DailyReportData {
+// 用户工时明细
+interface UserStats {
   date: string;
-  roleName: string;
-  roleId: number;
-  userStats: Array<{
-    userName: string;
-    totalHours: number;
-    workHours: Array<{
-      subject: string;
-      summary: string;
-      issueType: string;
-      workHoursTypeName: string;
-      workHoursNum: string;
-    }>;
+  userId: string;
+  userName: string;
+  roleName?: string;
+  totalHours: number;
+  workHours: Array<{
+    issueId: number;
+    subject: string;
+    summary: string;
+    issueType: string;
+    workHoursTypeName: string;
+    workHoursNum: string;
   }>;
+}
+
+// 日报报告数据（按角色分组）
+interface DailyReport {
   bugSummary: {
     count: number;
     items: Array<{
@@ -52,37 +58,80 @@ interface DailyReportData {
 }
 
 /**
- * 查询单个角色的日报数据
+ * 查询用户工时明细（不区分角色）
+ * @param businessService 业务服务实例
+ * @param projectId 项目ID
+ * @param roleIds 角色ID列表
+ * @param targetDate 目标日期
+ * @return 用户工时明细列表
  */
-async function queryDailyReportData(
+async function queryDailyUserStats(
   businessService: BusinessService,
   projectId: string,
-  roleId: number,
+  roleIds: number[],
   targetDate: string
-): Promise<DailyReportData | null> {
-  const roleMembers = await businessService.getMembersByRoleId(projectId, roleId);
+): Promise<ConsoleTotal<UserStats>> {
+  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+  const userIds = members.map((member) => member.user_id);
+  const dailyStats = await businessService.getDailyWorkHourStats(projectId, userIds, targetDate);
 
-  if (roleMembers.length === 0) {
-    return null;
-  }
+  const userStats: UserStats[] = dailyStats.userStats.map((userStat) => ({
+    date: targetDate,
+    userId: userStat.userId,
+    userName: userStat.userName,
+    roleName: members.find((m) => m.user_id === userStat.userId)?.role_name,
+    totalHours: userStat.totalHours,
+    workHours: userStat.workHours.map((workHour) => ({
+      issueId: workHour.issue_id,
+      subject: workHour.subject,
+      summary: workHour.summary,
+      issueType: workHour.issue_type,
+      nickName: workHour.nick_name,
+      workHoursTypeName: workHour.work_hours_type_name,
+      workHoursNum: workHour.work_hours_num,
+    })),
+  }));
 
-  const roleName = roleMembers[0].role_name;
-  const roleUserIds = roleMembers.map((member) => member.user_id);
+  // 判断是否为工作日，非工作日应计工时为0
 
-  const dailyStats = await businessService.getDailyWorkHourStats(
-    projectId,
-    roleUserIds,
-    targetDate
-  );
+  const isWorkDay = isWorkday(new Date(targetDate), targetDate.split('-')[0]);
+  const expectedHours = isWorkDay ? members.length * 8 : 0;
+  const totalMap: [string, string][] = [
+    ['统计人数', `${members.length} 人`],
+    ['应计工时', `${expectedHours} 小时`],
+    ['实际工时', `${dailyStats.totalHours} 小时`],
+  ];
 
+  return {
+    list: userStats,
+    roleNames: Array.from(new Set(userStats.map((s) => s.roleName).filter((r) => r !== undefined))),
+    title: `${targetDate} 工时统计`,
+    totalMap,
+  };
+}
+
+/**
+ * 查询日报报告数据（包括Bug汇总、迭代进度、其他工作等）
+ * @param businessService 业务服务实例
+ * @param projectId 项目ID
+ * @param targetDate 目标日期
+ * @param userIds 用户ID列表
+ * @param userStats 用户工时统计数据
+ */
+async function queryDailyReport(
+  businessService: BusinessService,
+  projectId: string,
+  targetDate: string,
+  userStats: UserStats[]
+): Promise<DailyReport> {
+  // Bug汇总
   const activeIssueIds = new Set<number>();
-  dailyStats.userStats.forEach((userStat) => {
+  userStats.forEach((userStat) => {
     userStat.workHours.forEach((workHour) => {
-      activeIssueIds.add(workHour.issue_id);
+      activeIssueIds.add(workHour.issueId);
     });
   });
 
-  // Bug汇总
   const bugWorkHoursMap = new Map<
     string,
     {
@@ -92,20 +141,20 @@ async function queryDailyReportData(
     }
   >();
 
-  dailyStats.userStats.forEach((userStat) => {
+  userStats.forEach((userStat) => {
     userStat.workHours.forEach((workHour) => {
       if (isBug(workHour)) {
         const key = workHour.subject;
-        const hours = parseFloat(workHour.work_hours_num) || 0;
+        const hours = parseFloat(workHour.workHoursNum) || 0;
 
         if (bugWorkHoursMap.has(key)) {
           const existing = bugWorkHoursMap.get(key)!;
-          existing.users.add(workHour.nick_name);
+          existing.users.add(userStat.userName);
           existing.totalHours += hours;
         } else {
           bugWorkHoursMap.set(key, {
             title: workHour.subject,
-            users: new Set([workHour.nick_name]),
+            users: new Set([userStat.userName]),
             totalHours: hours,
           });
         }
@@ -125,7 +174,7 @@ async function queryDailyReportData(
   // 迭代进度
   const activeIterations = await businessService.getActiveIterationsOnDate(projectId, targetDate);
 
-  const iterationProgress: DailyReportData['iterationProgress'] = [];
+  let iterationProgress: DailyReport['iterationProgress'] = [];
   let activeIssues: Awaited<ReturnType<typeof businessService.getWorkloadByIterationsAndUsers>> =
     [];
 
@@ -135,7 +184,7 @@ async function queryDailyReportData(
     const issues = await businessService.getWorkloadByIterationsAndUsers(
       projectId,
       activeIterationIds,
-      roleUserIds
+      userStats.map((s) => s.userId)
     );
 
     activeIssues = issues.filter((issue) => activeIssueIds.has(issue.id));
@@ -214,49 +263,33 @@ async function queryDailyReportData(
     '【移动端】【鸿蒙】调研、问题修复、打包等零散工作': '【鸿蒙】',
   };
 
-  const otherWork: DailyReportData['otherWork'] = [];
-  dailyStats.userStats.forEach((userStat) => {
+  const otherWork: DailyReport['otherWork'] = [];
+  userStats.forEach((userStat) => {
     userStat.workHours.forEach((workHour) => {
       if (
         workHour.summary &&
         workHour.summary.trim() !== '' &&
         !isBug(workHour) &&
-        !displayedIssueIds.has(workHour.issue_id)
+        !displayedIssueIds.has(workHour.issueId)
       ) {
         const subject = subjectMap[workHour.subject] ?? workHour.subject;
         otherWork.push({
           subject,
           summary: workHour.summary,
-          nickName: workHour.nick_name,
+          nickName: userStat.userName,
         });
       }
     });
   });
 
-  // 用户工时统计
-  const userStats = dailyStats.userStats.map((userStat) => ({
-    userName: userStat.userName,
-    totalHours: userStat.totalHours,
-    workHours: userStat.workHours.map((workHour) => ({
-      subject: workHour.subject,
-      summary: workHour.summary,
-      issueType: workHour.issue_type,
-      workHoursTypeName: workHour.work_hours_type_name,
-      workHoursNum: workHour.work_hours_num,
-    })),
-  }));
-
   return {
-    date: targetDate,
-    roleName,
-    roleId,
-    userStats,
     bugSummary,
     iterationProgress,
     otherWork,
-    totalHours: dailyStats.totalHours,
+    totalHours: userStats.reduce((sum, stat) => sum + stat.totalHours, 0),
   };
 }
+
 function issueTypeColor(type: string): string {
   const issueTypeColorMap: Record<string, (text: string) => string> = {
     任务: pc.bgCyan,
@@ -267,69 +300,31 @@ function issueTypeColor(type: string): string {
 /**
  * 控制台输出日报（多角色统一汇总）
  */
-function outputConsole(allReports: DailyReportData[], showReport: boolean = false): void {
-  if (allReports.length === 0) {
-    return;
-  }
+function outputConsole(data: ConsoleTotal<UserStats>): void {
+  const list = data.list;
 
-  const targetDate = allReports[0].date;
-  logger.info(`\n${targetDate} 工时统计 [${allReports.map((r) => r.roleName).join(', ')}]`);
-  logger.info('='.repeat(80));
+  consoleTotal(data);
 
-  // 按角色显示汇总工时和人数
-  const roleSummaries: Array<{ roleName: string; totalHours: number; memberCount: number }> = [];
-  const total = { totalHours: 0, memberCount: 0, roleName: '总计' };
-
-  allReports.forEach((report) => {
-    roleSummaries.push({
-      roleName: report.roleName,
-      totalHours: report.totalHours,
-      memberCount: report.userStats.length,
-    });
-    total.totalHours += report.totalHours;
-    total.memberCount += report.userStats.length;
-  });
-  roleSummaries.push(total);
-
-  roleSummaries.forEach((summary) => {
-    logger.info(`[${summary.roleName}] ${summary.totalHours}小时, 人数: ${summary.memberCount}人`);
-  });
-
-  logger.info('='.repeat(80));
   // 平铺所有用户的工时明细
-  allReports.forEach((report) => {
-    report.userStats.forEach((userStat) => {
-      logger.info();
-      logger.info(pc.red(`${userStat.userName} ${userStat.totalHours}小时`));
-      userStat.workHours
-        .sort((a, b) => a.issueType.localeCompare(b.issueType))
-        .forEach((workHour) => {
-          const summaryPart =
-            workHour.summary && workHour.summary.trim() !== ''
-              ? pc.cyan(` ${workHour.summary}`)
-              : '';
-          const workHoursTypePart = workHour.workHoursTypeName
-            ? ` (${workHour.workHoursTypeName})`
-            : '';
-          logger.info(
-            `  ${issueTypeColor(workHour.issueType)} ${workHour.subject}${summaryPart} ${workHoursTypePart} ${workHour.workHoursNum}小时`
-          );
-        });
-    });
+  list.forEach((userStat) => {
+    logger.info();
+    logger.info(pc.red(`${userStat.userName} ${userStat.totalHours}小时`));
+    userStat.workHours
+      .sort((a, b) => a.issueType.localeCompare(b.issueType))
+      .forEach((workHour) => {
+        const summaryPart =
+          workHour.summary && workHour.summary.trim() !== '' ? pc.cyan(` ${workHour.summary}`) : '';
+        const workHoursTypePart = workHour.workHoursTypeName
+          ? ` (${workHour.workHoursTypeName})`
+          : '';
+        logger.info(
+          `  ${issueTypeColor(workHour.issueType)} ${workHour.subject}${summaryPart} ${workHoursTypePart} ${workHour.workHoursNum}小时`
+        );
+      });
   });
-
-  if (!showReport) {
-    return;
-  }
-
-  // 总结报告（合并所有角色的数据）
-  consoleReport(allReports, total);
 }
 
-function consoleReport(
-  allReports: DailyReportData[],
-  total: { totalHours: number; memberCount: number; roleName: string }
-) {
+function consoleReport(report: DailyReport) {
   logger.info('\n\n');
   logger.info(`总结报告:`);
   logger.info('='.repeat(80));
@@ -338,20 +333,18 @@ function consoleReport(
 
   // 合并所有 Bug
   const allBugs = new Map<string, { title: string; users: Set<string>; hours: number }>();
-  allReports.forEach((report) => {
-    report.bugSummary.items.forEach((bug) => {
-      if (allBugs.has(bug.title)) {
-        const existing = allBugs.get(bug.title)!;
-        bug.users.split('、').forEach((user) => existing.users.add(user));
-        existing.hours += bug.hours;
-      } else {
-        allBugs.set(bug.title, {
-          title: bug.title,
-          users: new Set(bug.users.split('、')),
-          hours: bug.hours,
-        });
-      }
-    });
+  report.bugSummary.items.forEach((bug) => {
+    if (allBugs.has(bug.title)) {
+      const existing = allBugs.get(bug.title)!;
+      bug.users.split('、').forEach((user) => existing.users.add(user));
+      existing.hours += bug.hours;
+    } else {
+      allBugs.set(bug.title, {
+        title: bug.title,
+        users: new Set(bug.users.split('、')),
+        hours: bug.hours,
+      });
+    }
   });
 
   if (allBugs.size > 0) {
@@ -374,27 +367,25 @@ function consoleReport(
     }
   >();
 
-  allReports.forEach((report) => {
-    report.iterationProgress.forEach((iteration) => {
-      if (allIterations.has(iteration.iterationName)) {
-        const existing = allIterations.get(iteration.iterationName)!;
-        // 使用最高的完成率
-        existing.completionRate = Math.max(existing.completionRate, iteration.completionRate);
-        // 合并活跃问题（去重）
-        iteration.activeIssues.forEach((issue) => {
-          const exists = existing.activeIssues.some((i) => i.name === issue.name);
-          if (!exists) {
-            existing.activeIssues.push(issue);
-          }
-        });
-      } else {
-        allIterations.set(iteration.iterationName, {
-          iterationName: iteration.iterationName,
-          completionRate: iteration.completionRate,
-          activeIssues: [...iteration.activeIssues],
-        });
-      }
-    });
+  report.iterationProgress.forEach((iteration) => {
+    if (allIterations.has(iteration.iterationName)) {
+      const existing = allIterations.get(iteration.iterationName)!;
+      // 使用最高的完成率
+      existing.completionRate = Math.max(existing.completionRate, iteration.completionRate);
+      // 合并活跃问题（去重）
+      iteration.activeIssues.forEach((issue) => {
+        const exists = existing.activeIssues.some((i) => i.name === issue.name);
+        if (!exists) {
+          existing.activeIssues.push(issue);
+        }
+      });
+    } else {
+      allIterations.set(iteration.iterationName, {
+        iterationName: iteration.iterationName,
+        completionRate: iteration.completionRate,
+        activeIssues: [...iteration.activeIssues],
+      });
+    }
   });
 
   Array.from(allIterations.values()).forEach((iteration) => {
@@ -407,37 +398,30 @@ function consoleReport(
   });
 
   // 合并所有其他工作
-  const allOtherWork: Array<{ subject: string; summary: string; nickName: string }> = [];
-  allReports.forEach((report) => {
-    allOtherWork.push(...report.otherWork);
-  });
-
-  if (allOtherWork.length > 0) {
-    logger.info(`${index}.其他: ${allOtherWork.length}项`);
-    allOtherWork.forEach((work) => {
+  if (report.otherWork.length > 0) {
+    logger.info(`${index}.其他: ${report.otherWork.length}项`);
+    report.otherWork.forEach((work) => {
       const subjectPart = work.subject ? `${work.subject} ` : '';
       logger.info(` - ${subjectPart}${work.summary} ${work.nickName}`);
     });
     index++;
   }
 
-  logger.info(`${index}.工时: ${total.totalHours}`);
+  logger.info(`${index}.工时: ${report.totalHours}`);
 }
 
 /**
  * CSV 文件输出
  */
-function outputCsv(list: DailyReportData[], targetDate: string): void {
+function outputCsv(list: UserStats[], targetDate: string): void {
   const csvLines: string[] = [];
   csvLines.push('日期,角色,用户,工作项,摘要,类型,工时类型,工时');
 
-  list.forEach((data) => {
-    data.userStats.forEach((userStat) => {
-      userStat.workHours.forEach((workHour) => {
-        csvLines.push(
-          `${data.date ?? ''},${data.roleName ?? ''},${userStat.userName ?? ''},"${escapeCsv(workHour.subject)}","${escapeCsv(workHour.summary)}",${workHour.issueType ?? ''},${workHour.workHoursTypeName ?? ''},${workHour.workHoursNum ?? ''}`
-        );
-      });
+  list.forEach((userStat) => {
+    userStat.workHours.forEach((workHour) => {
+      csvLines.push(
+        `${userStat.date ?? ''},${userStat.roleName ?? ''},${userStat.userName ?? ''},"${escapeCsv(workHour.subject)}","${escapeCsv(workHour.summary)}",${workHour.issueType ?? ''},${workHour.workHoursTypeName ?? ''},${workHour.workHoursNum ?? ''}`
+      );
     });
   });
 
@@ -448,7 +432,7 @@ function outputCsv(list: DailyReportData[], targetDate: string): void {
 /**
  * JSON 输出（直接打印到控制台，供编程调用）
  */
-function outputJson(data: DailyReportData[]): void {
+function outputJson(data: UserStats[]): void {
   logger.json(data);
 }
 
@@ -463,23 +447,26 @@ export async function dailyCommand(date?: string, cliOptions: CliOptions = {}): 
     const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
 
     const businessService = new BusinessService(config);
-    const allReports: DailyReportData[] = [];
 
-    for (const roleId of roleIds) {
-      const reportData = await queryDailyReportData(businessService, projectId, roleId, targetDate);
+    // 查询用户工时统计
+    const data = await queryDailyUserStats(businessService, projectId, roleIds, targetDate);
 
-      if (reportData) {
-        allReports.push(reportData);
-      }
+    // 查询报告数据
+    let report = null;
+    if (showReport && outputFormat === 'console') {
+      report = await queryDailyReport(businessService, projectId, targetDate, data.list);
     }
 
     // 控制台输出
     if (outputFormat === 'console') {
-      outputConsole(allReports, showReport);
+      outputConsole(data);
+      if (report) {
+        consoleReport(report);
+      }
     } else if (outputFormat === 'csv') {
-      outputCsv(allReports, targetDate);
+      outputCsv(data.list, targetDate);
     } else if (outputFormat === 'json') {
-      outputJson(allReports);
+      outputJson(data.list);
     }
   } catch (error) {
     logger.error(`执行过程中发生错误:`, error);

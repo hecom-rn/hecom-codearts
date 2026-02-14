@@ -472,7 +472,7 @@ export enum ConfigKey {
 使用枚举访问配置，避免字符串拼写错误：
 
 ```typescript
-import { ConfigKey, PartialConfigMap } from '../types';
+import { ConfigKey, ConfigMap } from '../types';
 
 // ✅ 正确：使用枚举
 const projectId = config[ConfigKey.PROJECT_ID];

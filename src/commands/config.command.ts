@@ -2,7 +2,7 @@ import { checkbox, confirm, input, password, select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
-import { ConfigKey, PartialConfigMap, Project } from '../types';
+import { ConfigKey, ConfigMap, Project } from '../types';
 import {
   configExists,
   getConfig,
@@ -299,7 +299,7 @@ export async function configCommand(): Promise<void> {
   }
 
   // 第三阶段：配置项目相关配置
-  const projectConfigs: PartialConfigMap = {};
+  const projectConfigs: Partial<ConfigMap> = {};
 
   for (const configItem of PROJECT_CONFIG_ITEMS) {
     const value = await configItem.configure(
@@ -311,7 +311,7 @@ export async function configCommand(): Promise<void> {
   }
 
   // 合并所有配置（转换为标准环境变量名）
-  const finalConfig: PartialConfigMap = {
+  const finalConfig: Partial<ConfigMap> = {
     [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]: iamAnswers.iamEndpoint,
     [ConfigKey.HUAWEI_CLOUD_REGION]: iamAnswers.region,
     [ConfigKey.CODEARTS_BASE_URL]: iamAnswers.codeartsUrl,
@@ -377,7 +377,7 @@ export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<
   );
 
   // 更新配置
-  const updatedConfig: PartialConfigMap = {
+  const updatedConfig: Partial<ConfigMap> = {
     ...existingConfig,
     [configKey]: newValue,
   };

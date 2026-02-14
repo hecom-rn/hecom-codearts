@@ -629,24 +629,6 @@ export enum ConfigKey {
 }
 
 /**
- * 不可变配置键（只能通过 config 命令设置）
- */
-export const IMMUTABLE_CONFIG_KEYS: ConfigKey[] = [
-  ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT,
-  ConfigKey.HUAWEI_CLOUD_REGION,
-  ConfigKey.HUAWEI_CLOUD_USERNAME,
-  ConfigKey.HUAWEI_CLOUD_PASSWORD,
-  ConfigKey.HUAWEI_CLOUD_DOMAIN,
-  ConfigKey.CODEARTS_BASE_URL,
-  ConfigKey.PROJECT_ID,
-];
-
-/**
- * 可变配置键（可以通过命令行参数覆盖）
- */
-export const MUTABLE_CONFIG_KEYS: ConfigKey[] = [ConfigKey.ROLE_ID];
-
-/**
  * 类型安全的配置映射
  */
 export type ConfigMap = {
@@ -661,11 +643,13 @@ export type ConfigMap = {
 };
 
 /**
- * 部分配置映射（用于读取配置文件）
- */
-export type PartialConfigMap = Partial<ConfigMap>;
-
-/**
  * 输出格式类型
  */
 export type OutputFormat = 'console' | 'csv' | 'json';
+
+export interface ConsoleTotal<T> {
+  title: string;
+  roleNames: string[];
+  totalMap: [string, string | (() => string)][];
+  list: T[];
+}

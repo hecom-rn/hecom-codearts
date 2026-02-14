@@ -1,5 +1,3 @@
-export type OutputFormat = 'console' | 'csv' | 'json';
-
 /**
  * 日志工具类（单例模式）
  * 根据输出格式自动控制日志输出：

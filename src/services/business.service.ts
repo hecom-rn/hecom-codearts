@@ -27,23 +27,15 @@ export class BusinessService {
     this.apiService = new ApiService(config);
   }
 
-  /**
-   * 获取底层ApiService实例
-   * 用于需要直接访问API服务的场景
-   */
-  public getApiService(): ApiService {
-    return this.apiService;
-  }
-
   // 业务操作方法将在后续添加
 
   /**
    * 通过角色ID获取项目成员
    * @param projectId 项目ID
-   * @param roleId 角色ID
+   * @param roleIds 角色ID列表
    * @returns 指定角色的成员列表
    */
-  async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMember[]> {
+  async getMembersByRoleIds(projectId: string, roleIds: number[]): Promise<ProjectMember[]> {
     const membersResponse = await this.apiService.getMembers(projectId);
 
     if (!membersResponse.success) {
@@ -51,7 +43,9 @@ export class BusinessService {
     }
 
     const allMembers = membersResponse.data?.members || [];
-    return allMembers.filter((member) => member.role_id === roleId);
+    const roleIdsSet = new Set(roleIds);
+
+    return allMembers.filter((member) => roleIdsSet.has(member.role_id));
   }
 
   /**
@@ -162,34 +156,6 @@ export class BusinessService {
 
     if (!issuesResponse.success) {
       throw new Error(`获取工作项失败: ${issuesResponse.error || '未知错误'}`);
-    }
-
-    return issuesResponse.data?.issues || [];
-  }
-
-  /**
-   * 根据迭代ID和用户ID列表查询工作量列表（仅Task和Story）
-   * @param projectId 项目ID
-   * @param iterationId 迭代ID
-   * @param userIds 用户ID列表
-   * @returns Task和Story类型的工作项列表
-   */
-  async getWorkloadByIterationAndUsers(
-    projectId: string,
-    iterationId: number,
-    userIds: string[]
-  ): Promise<IssueItem[]> {
-    const issuesResponse = await this.apiService.getIssues(projectId, {
-      iteration_ids: [iterationId],
-      tracker_ids: [2, 7], // 2=Task(任务), 7=Story
-      assigned_ids: userIds,
-      include_deleted: false,
-      limit: 100,
-      offset: 0,
-    });
-
-    if (!issuesResponse.success) {
-      throw new Error(`获取工作项列表失败: ${issuesResponse.error || '未知错误'}`);
     }
 
     return issuesResponse.data?.issues || [];
@@ -358,7 +324,8 @@ export class BusinessService {
    */
   async getStoriesByIterationTitles(
     projectId: string,
-    iterationTitles: string[]
+    iterationTitles: string[],
+    userIds?: string[]
   ): Promise<IssueItem[]> {
     // Step 1: 根据标题获取迭代信息
     const iterations = await this.getIterationsByTitles(projectId, iterationTitles);
@@ -379,6 +346,7 @@ export class BusinessService {
     while (hasMore) {
       const issuesResponse = await this.apiService.getIssues(projectId, {
         iteration_ids: iterationIds,
+        assigned_ids: userIds,
         tracker_ids: [7], // 7=Story
         include_deleted: false,
         limit: pageSize,
