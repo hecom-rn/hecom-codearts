@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc && chmod +x bin/codearts",
+    "build": "rimraf dist && tsc",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
     "prepublishOnly": "npm run build",
