@@ -4,7 +4,7 @@ import { BusinessService } from '../services/business.service';
 import { ConsoleTotal } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { consoleTotal } from '../utils/console';
-import { escapeCsv, writeCsvFile } from '../utils/csv-writer';
+import { buildCsvRow, writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
 function isBug(workHour: UserStats['workHours'][number]): boolean {
@@ -415,12 +415,23 @@ function consoleReport(report: DailyReport) {
  */
 function outputCsv(list: UserStats[], targetDate: string): void {
   const csvLines: string[] = [];
-  csvLines.push('日期,角色,用户,工作项,摘要,类型,工时类型,工时');
+  csvLines.push(
+    buildCsvRow(['日期', '角色', '用户', '类型', '工作项', '工作内容', '工时类型', '工时'])
+  );
 
   list.forEach((userStat) => {
     userStat.workHours.forEach((workHour) => {
       csvLines.push(
-        `${userStat.date ?? ''},${userStat.roleName ?? ''},${userStat.userName ?? ''},"${escapeCsv(workHour.subject)}","${escapeCsv(workHour.summary)}",${workHour.issueType ?? ''},${workHour.workHoursTypeName ?? ''},${workHour.workHoursNum ?? ''}`
+        buildCsvRow([
+          userStat.date,
+          userStat.roleName,
+          userStat.userName,
+          workHour.issueType,
+          workHour.subject,
+          workHour.summary,
+          workHour.workHoursTypeName,
+          workHour.workHoursNum,
+        ])
       );
     });
   });

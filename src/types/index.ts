@@ -351,6 +351,13 @@ export interface ListProjectIterationsV4Request {
   include_deleted?: boolean; // 是否包含被删除的迭代，false（不包含）true（包含）
 }
 
+export enum IterationStatus {
+  OPEN = 'open', // 老数据默认状态
+  NOT_STARTED = '0', // 未启动
+  IN_PROGRESS = '1', // 进行中
+  COMPLETED = '2', // 已结束
+}
+
 export interface IterationInfo {
   begin_time: string; // 迭代开始时间
   deleted: boolean; // 迭代是否已经删除，false（未删除）true（已经删除）
@@ -358,7 +365,7 @@ export interface IterationInfo {
   end_time: string; // 迭代结束时间
   id: number; // 迭代id
   name: string; // 迭代标题
-  status: string; // 迭代状态，open（老数据默认状态）0（未启动）1（进行中）2（已结束）
+  status: IterationStatus; // 迭代状态
   updated_time: number; // 迭代更新时间，长整型时间戳
 }
 

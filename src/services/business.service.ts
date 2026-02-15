@@ -4,6 +4,7 @@ import {
   IssueItem,
   IssueItemV2,
   IterationInfo,
+  IterationStatus,
   ProjectMember,
   ProjectRole,
   TypeWorkHourStats,
@@ -98,6 +99,31 @@ export class BusinessService {
   }
 
   /**
+   * 获取项目的迭代列表
+   * @param projectId 项目ID
+   * @param options 可选参数
+   * @returns 迭代列表
+   */
+  async getIterations(
+    projectId: string,
+    options: { limit: number } = { limit: 12 }
+  ): Promise<IterationInfo[]> {
+    const iterationsResponse = await this.apiService.getIterations(projectId, {
+      include_deleted: false,
+    });
+
+    if (!iterationsResponse.success) {
+      throw new Error(`获取迭代列表失败: ${iterationsResponse.error || '未知错误'}`);
+    }
+    const list =
+      (iterationsResponse.data?.iterations?.length || 0) > options.limit
+        ? iterationsResponse.data?.iterations?.slice(0, options.limit) || []
+        : iterationsResponse.data?.iterations || [];
+
+    return list;
+  }
+
+  /**
    * 获取指定日期之后的迭代列表
    * @param projectId 项目ID
    * @param targetDate 目标日期，格式：YYYY-MM-DD
@@ -118,7 +144,7 @@ export class BusinessService {
     // 过滤出在目标日期正在进行中的迭代
     return iterations.filter((iteration) => {
       // 检查迭代状态是否为进行中 (1)
-      if (iteration.status !== '1') {
+      if (iteration.status !== IterationStatus.IN_PROGRESS) {
         return false;
       }
 
@@ -317,19 +343,16 @@ export class BusinessService {
   }
 
   /**
-   * 根据迭代标题获取所有 Story
+   * 根据迭代信息获取所有 Story
    * @param projectId 项目ID
-   * @param iterationTitles 迭代标题列表
+   * @param iterations 迭代信息列表
    * @returns Story 类型的工作项列表
    */
-  async getStoriesByIterationTitles(
+  async getStoriesByIterations(
     projectId: string,
-    iterationTitles: string[],
+    iterations: IterationInfo[],
     userIds?: string[]
   ): Promise<IssueItem[]> {
-    // Step 1: 根据标题获取迭代信息
-    const iterations = await this.getIterationsByTitles(projectId, iterationTitles);
-
     if (iterations.length === 0) {
       return [];
     }

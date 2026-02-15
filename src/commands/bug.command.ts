@@ -1,8 +1,9 @@
+import { checkbox } from '@inquirer/prompts';
 import { BusinessService } from '../services/business.service';
-import { ConsoleTotal, DefectAnalysisType, IssueItemV2 } from '../types';
+import { ConsoleTotal, DefectAnalysisType, IssueItemV2, IterationInfo } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
-import { consoleTotal } from '../utils/console';
-import { escapeCsv, writeCsvFile } from '../utils/csv-writer';
+import { consoleTotal, issueLink } from '../utils/console';
+import { buildCsvRow, createHyperlinkFormula, writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
 interface UserStats {
@@ -43,7 +44,7 @@ async function queryBugReportData(
   businessService: BusinessService,
   projectId: string,
   roleIds: number[],
-  iterationTitles: string[]
+  iterations: IterationInfo[]
 ): Promise<ConsoleTotal<UserStats>> {
   const roleNames = new Set<string>();
   const targetMemberIds = new Set<number>();
@@ -55,9 +56,9 @@ async function queryBugReportData(
     roleNames.add(member.role_name);
   });
 
-  const stories = await businessService.getStoriesByIterationTitles(
+  const stories = await businessService.getStoriesByIterations(
     projectId,
-    iterationTitles,
+    iterations,
     members.map((m) => m.user_id)
   );
 
@@ -135,7 +136,7 @@ async function queryBugReportData(
       ['总 Bug 数', `${totalBugs}个`],
       ['产品问题数', `${totalProductBugs}个`],
       ['统计人数', `${sortedStats.length}人`],
-      ['统计迭代', `${iterationTitles.join(', ')}`],
+      ['统计迭代', `${iterations.map((i) => i.name).join(', ')}`],
     ],
   };
 }
@@ -144,6 +145,7 @@ async function queryBugReportData(
  * 控制台输出产品缺陷率统计
  */
 function outputConsole(data: ConsoleTotal<UserStats>): void {
+  logger.info();
   consoleTotal(data);
 
   data.list.forEach((stats) => {
@@ -164,9 +166,9 @@ function outputConsole(data: ConsoleTotal<UserStats>): void {
 /**
  * CSV 文件输出
  */
-function outputCsv(list: UserStats[], iterationTitles: string[]): void {
+function outputCsv(list: UserStats[], projectId: string): void {
   const csvLines: string[] = [];
-  csvLines.push('迭代,处理人,Story名称,StoryID,总Bug数,产品问题Bug数,产品缺陷率');
+  csvLines.push(buildCsvRow(['迭代', '处理人', 'Story', '总Bug数', '产品问题Bug数', '产品缺陷率']));
 
   list.forEach((userStat) => {
     userStat.stories.forEach((story) => {
@@ -174,13 +176,22 @@ function outputCsv(list: UserStats[], iterationTitles: string[]): void {
         story.totalBugCount > 0
           ? ((story.productBugCount / story.totalBugCount) * 100).toFixed(2)
           : '0.00';
+      const storyUrl = issueLink(projectId, story.storyId);
+      const storyLink = createHyperlinkFormula(storyUrl, story.storyName ?? '');
       csvLines.push(
-        `"${escapeCsv(story.iterationName)}",${userStat.userName ?? ''},"${escapeCsv(story.storyName ?? '')}",${story.storyId ?? ''},${story.totalBugCount ?? ''},${story.productBugCount ?? ''},${defectRate}%`
+        buildCsvRow([
+          story.iterationName,
+          userStat.userName ?? '',
+          storyLink,
+          story.totalBugCount ?? '',
+          story.productBugCount ?? '',
+          `${defectRate}%`,
+        ])
       );
     });
   });
 
-  const filename = `bug-rate-${iterationTitles.join('-')}.csv`;
+  const filename = `bug-rate.csv`;
   writeCsvFile(filename, csvLines, logger);
 }
 
@@ -194,34 +205,45 @@ function outputJson(data: UserStats[]): void {
 /**
  * bug 命令入口
  */
-export async function bugCommand(
-  iterationTitlesStr: string,
-  cliOptions: CliOptions = {}
-): Promise<void> {
+export async function bugCommand(cliOptions: CliOptions = {}): Promise<void> {
   try {
-    if (!iterationTitlesStr || iterationTitlesStr.trim() === '') {
-      throw new Error('请指定至少一个迭代标题');
-    }
-
-    const iterationTitles = iterationTitlesStr
-      .split(/[,，;；|\s、]+/)
-      .map((title) => title.trim())
-      .filter((title) => title.length > 0);
-
     const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
     const businessService = new BusinessService(config);
+
+    const iterations = await businessService.getIterations(projectId);
+
+    if (iterations.length === 0) {
+      throw new Error('未获取到任何迭代信息');
+    }
+
+    const iterationChoices = iterations.map((iteration) => ({
+      name: `${iteration.name} (${iteration.begin_time} ~ ${iteration.end_time})`,
+      value: iteration,
+      checked: false,
+    }));
+
+    const selectedIterations = await checkbox({
+      message: '请选择要统计的迭代：',
+      choices: iterationChoices,
+      validate: (answer) => {
+        if (answer.length === 0) {
+          return '至少需要选择一个迭代';
+        }
+        return true;
+      },
+    });
 
     const reportData = await queryBugReportData(
       businessService,
       projectId,
       roleIds,
-      iterationTitles
+      selectedIterations
     );
 
     if (outputFormat === 'console') {
       outputConsole(reportData);
     } else if (outputFormat === 'csv') {
-      outputCsv(reportData.list, iterationTitles);
+      outputCsv(reportData.list, projectId);
     } else if (outputFormat === 'json') {
       outputJson(reportData.list);
     }

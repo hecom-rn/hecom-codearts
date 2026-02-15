@@ -11,8 +11,8 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { workHourCommand } from '../commands/work-hour.command';
-import { showLogo } from '../utils/console';
 import { configExists } from '../utils/config-loader';
+import { showLogo } from '../utils/console';
 import { logger } from '../utils/logger';
 
 // 读取 package.json 中的版本号
@@ -83,12 +83,12 @@ program
 
 // bug-rate 命令
 program
-  .command('bug-rate <iterations>')
-  .description('产品缺陷率统计，支持多个迭代')
-  .action(async (iterations, options, command) => {
+  .command('bug-rate')
+  .description('产品缺陷率统计')
+  .action(async (options, command) => {
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);
-    await bugCommand(iterations, cliOptions);
+    await bugCommand(cliOptions);
   });
 
 // 检查配置并自动执行 config 命令

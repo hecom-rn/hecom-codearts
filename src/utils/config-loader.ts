@@ -150,7 +150,7 @@ export function deleteConfig(): void {
 const globalConfig = configExists() ? readConfig() : {};
 
 export interface CliOptions {
-  roleId?: string;
+  role?: string;
   output?: string;
   report?: boolean;
 }
@@ -170,7 +170,7 @@ export interface LoadedConfig {
 export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
   // 命令行参数 > 全局配置
   const projectId = globalConfig[ConfigKey.PROJECT_ID];
-  const roleIdStr = cliOptions.roleId || globalConfig[ConfigKey.ROLE_ID];
+  const roleIdStr = cliOptions.role || globalConfig[ConfigKey.ROLE_ID];
 
   if (!projectId) {
     throw new Error('缺少项目 ID');

@@ -40,3 +40,7 @@ export function consoleTotal<T>(total: ConsoleTotal<T>): void {
   });
   logger.info('='.repeat(80));
 }
+
+export function issueLink(projectId: string, issueId: string | number): string {
+  return `https://devcloud.cn-north-4.huaweicloud.com/projectman/scrum/${projectId}/task/detail/${issueId}`;
+}

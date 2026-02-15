@@ -3,7 +3,7 @@ import { BusinessService } from '../services/business.service';
 import { ConsoleTotal, ProjectMember, UserAllWorkHourStats } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { consoleTotal } from '../utils/console';
-import { writeCsvFile } from '../utils/csv-writer';
+import { buildCsvRow, writeCsvFile } from '../utils/csv-writer';
 import { logger } from '../utils/logger';
 
 /**
@@ -146,12 +146,14 @@ function outputConsole(data: ConsoleTotal<UserStats>): void {
 function outputCsv(list: UserStats[], targetYear: string): void {
   const domains = Object.keys(list[0].domainStats);
   const csvLines: string[] = [];
-  csvLines.push(`用户,角色,${domains.join(',')},合计`);
+
+  const headerRow = ['用户', '角色', ...domains, '合计'];
+  csvLines.push(buildCsvRow(headerRow));
 
   list.forEach((userStat) => {
     const domainValues = domains.map((domain) => userStat.domainStats[domain] || 0);
     csvLines.push(
-      `${userStat.userName},${userStat.roleName},${domainValues.join(',')},${userStat.total}`
+      buildCsvRow([userStat.userName, userStat.roleName, ...domainValues, userStat.total])
     );
   });
 
