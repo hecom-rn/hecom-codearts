@@ -35,7 +35,7 @@ npx @hecom/codearts bug-rate "迭代1,迭代2"
 npx @hecom/codearts config
 
 # 单独更新角色配置
-npx @hecom/codearts config role-id
+npx @hecom/codearts config role
 
 # 查看当前配置
 npx @hecom/codearts config show

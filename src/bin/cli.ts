@@ -26,7 +26,7 @@ program.name('codearts').description('华为云 CodeArts 统计分析工具').ve
 
 // 全局选项（环境变量覆盖）
 program
-  .option('--role-id <ids>', '角色 ID（支持逗号分隔，如: 1,2）')
+  .option('--role <ids>', '角色 ID（支持逗号分隔，如: 1,2）')
   .option('--output <format>', '输出格式：console、csv、json', 'console');
 
 // config 命令 - 交互式配置向导

@@ -92,14 +92,14 @@ src/
 │   ├── api.service.ts      # 华为云基础 API 封装
 │   └── business.service.ts # 业务场景 API 封装
 ├── utils/                  # 工具函数
+│   ├── console.ts          # 统一打印工具
+│   ├── csv-writer.ts       # CSV 写入工具
 │   ├── config-loader.ts    # 配置加载器（CLI参数 > 环境变量）
 │   └── logger.ts           # 日志工具（单例模式，支持多种输出格式）
 ├── config/
 │   └── holidays.ts         # 节假日配置与工作日计算
-├── types/
-│   └── index.ts            # TypeScript 类型定义（API 契约）
-└── index.ts                # 模块导出入口
-
+└── types/
+    └── index.ts            # TypeScript 类型定义（API 契约）
 bin/
 └── codearts                # CLI 可执行文件
 ```
@@ -110,7 +110,7 @@ bin/
 
 使用 Commander.js 框架构建命令行工具：
 
-- 定义全局选项（--project-id, --role-id, --username 等）
+- 定义全局选项（--role等）
 - 注册子命令（config, daily, work-hour, bug-rate）
 - 处理命令行参数解析
 - 提供 --help 帮助信息
@@ -135,7 +135,7 @@ bin/
 
 #### 服务层（src/services/）
 
-不变，继续提供 API 封装
+提供 API 封装
 
 ### 关键文件说明
 
@@ -156,29 +156,15 @@ bin/
 
 ## 4. 代码风格规范
 
-### 4.1 Import 导入顺序
-
-- 第三方库导入（如 axios, inquirer）
-- 项目内部模块导入（使用相对路径）
-- 类型导入可与模块导入合并
-
-示例：
-
-```typescript
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { ApiService } from './services/api.service';
-import { HuaweiCloudConfig, WorkHour } from './types';
-```
-
-### 4.2 命名约定
+### 4.1 命名约定
 
 - **文件名**: 使用 `kebab-case`，例如 `api.service.ts`, `business.service.ts`
 - **类名**: 使用 `PascalCase`，例如 `ApiService`, `BusinessService`
 - **函数/变量名**: 使用 `camelCase`，例如 `getMembersByRoleId`, `totalHours`
 - **接口/类型名**: 使用 `PascalCase`，例如 `HuaweiCloudConfig`, `WorkHour`
-- **常量**: 使用 `camelCase` 或 `UPPER_SNAKE_CASE`，根据语义决定
+- **常量**: 使用 `UPPER_SNAKE_CASE`，根据语义决定
 
-### 4.3 格式化规则（Prettier）
+### 4.2 格式化规则（Prettier）
 
 ```json
 {
@@ -194,7 +180,7 @@ import { HuaweiCloudConfig, WorkHour } from './types';
 }
 ```
 
-### 4.4 TypeScript 配置要点
+### 4.3 TypeScript 配置要点
 
 - **严格模式**: `"strict": true`（启用所有严格类型检查）
 - **目标版本**: `"target": "ES2020"`
@@ -202,7 +188,7 @@ import { HuaweiCloudConfig, WorkHour } from './types';
 - **类型声明**: 所有导出的函数和类必须包含类型声明
 - **编译输出**: `"outDir": "./dist"`, `"rootDir": "./src"`
 
-### 4.5 ESLint 规则
+### 4.4 ESLint 规则
 
 - 使用 `@typescript-eslint/parser` 解析器
 - 集成 Prettier（`plugin:prettier/recommended`）
@@ -250,11 +236,6 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ```typescript
 export interface HuaweiCloudConfig {
-  iamEndpoint: string;
-  region: string;
-  endpoint: string;
-  username: string;
-  password: string;
   domainName: string;
   enableLogging?: boolean;  // 可选属性
 }
@@ -308,24 +289,7 @@ try {
 - ⛔ **禁止使用 `console.log`、`console.error`、`console.warn` 等原生方法**
 - ✅ **必须使用 `logger` 工具的方法进行所有日志输出**
 
-### 7.2 Logger 方法
-
-从 `src/utils/logger.ts` 导入：
-
-```typescript
-import { logger } from '../utils/logger';
-```
-
-### 7.3 静默模式
-
-当输出格式为 `json` 时，Logger 自动进入静默模式：
-
-- `info`、`success`、`warn`、`debug`、`table` 方法被静默
-- `error` 和 `json` 方法始终输出
-
-这确保 `--output json` 时只输出纯 JSON 数据，不混入其他日志信息。
-
-### 7.4 错误输出规范
+### 7.2 错误输出规范
 
 错误处理中使用 logger.error：
 
@@ -346,26 +310,6 @@ console.error('操作失败');
 
 // ✅ 正确示例
 logger.error('操作失败');
-```
-
-### 7.6 导入规范
-
-所有需要输出日志的文件必须导入 logger：
-
-```typescript
-import { logger } from '../utils/logger';
-```
-
-**禁止直接使用 console**：
-
-```typescript
-// ❌ 错误示例
-console.log('Hello');
-console.error('Error');
-
-// ✅ 正确示例
-logger.info('Hello');
-logger.error('Error');
 ```
 
 ---
@@ -484,7 +428,7 @@ const projectId = config['PROJECT_ID']; // 类型错误
 
 ### 全局配置
 
-使用 `codearts config` 创建全局配置：
+创建全局配置：
 
 ```bash
 codearts config
@@ -524,7 +468,7 @@ ROLE_ID=1,2,3
 
 目前支持的 CLI 参数：
 
-- `--role-id <ids>`: 角色 ID（支持逗号分隔）
+- `--role <ids>`: 角色 ID（支持逗号分隔）
 
 **注意**：只有可变配置才能通过 CLI 参数覆盖。不可变配置必须通过 `codearts config` 命令设置。
 
