@@ -1,3 +1,4 @@
+import ora from 'ora';
 import { calculateExpectedWorkdays } from '../config/holidays';
 import { BusinessService } from '../services/business.service';
 import { ConsoleTotal, ProjectMember, UserAllWorkHourStats } from '../types';
@@ -172,29 +173,20 @@ function outputJson(data: UserStats[]): void {
  * work-hour 命令入口
  */
 export async function workHourCommand(year?: string, cliOptions: CliOptions = {}): Promise<void> {
-  try {
-    const targetYear = year || new Date().getFullYear().toString();
+  const spinner = ora('正在查询数据...').start();
+  const targetYear = year || new Date().getFullYear().toString();
 
-    const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
+  const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
 
-    const businessService = new BusinessService(config);
+  const businessService = new BusinessService(config);
 
-    const reportData = await queryWorkHourReportData(
-      businessService,
-      projectId,
-      roleIds,
-      targetYear
-    );
-
-    if (outputFormat === 'console') {
-      outputConsole(reportData);
-    } else if (outputFormat === 'csv') {
-      outputCsv(reportData.list, targetYear);
-    } else if (outputFormat === 'json') {
-      outputJson(reportData.list);
-    }
-  } catch (error) {
-    logger.error(`执行过程中发生错误:`, error);
-    process.exit(1);
+  const reportData = await queryWorkHourReportData(businessService, projectId, roleIds, targetYear);
+  spinner.stop();
+  if (outputFormat === 'console') {
+    outputConsole(reportData);
+  } else if (outputFormat === 'csv') {
+    outputCsv(reportData.list, targetYear);
+  } else if (outputFormat === 'json') {
+    outputJson(reportData.list);
   }
 }

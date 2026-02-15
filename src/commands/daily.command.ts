@@ -1,3 +1,4 @@
+import ora from 'ora';
 import pc from 'picocolors';
 import { isWorkday } from '../config/holidays';
 import { BusinessService } from '../services/business.service';
@@ -451,36 +452,32 @@ function outputJson(data: UserStats[]): void {
  * daily 命令入口
  */
 export async function dailyCommand(date?: string, cliOptions: CliOptions = {}): Promise<void> {
-  try {
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    const showReport = cliOptions.report ?? false;
+  const spinner = ora('正在查询数据...').start();
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  const showReport = cliOptions.report ?? false;
 
-    const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
+  const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
 
-    const businessService = new BusinessService(config);
+  const businessService = new BusinessService(config);
 
-    // 查询用户工时统计
-    const data = await queryDailyUserStats(businessService, projectId, roleIds, targetDate);
+  // 查询用户工时统计
+  const data = await queryDailyUserStats(businessService, projectId, roleIds, targetDate);
 
-    // 查询报告数据
-    let report = null;
-    if (showReport && outputFormat === 'console') {
-      report = await queryDailyReport(businessService, projectId, targetDate, data.list);
+  // 查询报告数据
+  let report = null;
+  if (showReport && outputFormat === 'console') {
+    report = await queryDailyReport(businessService, projectId, targetDate, data.list);
+  }
+  spinner.stop();
+  // 控制台输出
+  if (outputFormat === 'console') {
+    outputConsole(data);
+    if (report) {
+      consoleReport(report);
     }
-
-    // 控制台输出
-    if (outputFormat === 'console') {
-      outputConsole(data);
-      if (report) {
-        consoleReport(report);
-      }
-    } else if (outputFormat === 'csv') {
-      outputCsv(data.list, targetDate);
-    } else if (outputFormat === 'json') {
-      outputJson(data.list);
-    }
-  } catch (error) {
-    logger.error(`执行过程中发生错误:`, error);
-    process.exit(1);
+  } else if (outputFormat === 'csv') {
+    outputCsv(data.list, targetDate);
+  } else if (outputFormat === 'json') {
+    outputJson(data.list);
   }
 }

@@ -1,4 +1,5 @@
 import { checkbox, confirm, input, password, select } from '@inquirer/prompts';
+import ora from 'ora';
 import pc from 'picocolors';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
@@ -10,6 +11,7 @@ import {
   readConfig,
   writeConfig,
 } from '../utils/config-loader';
+import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 
 /**
@@ -59,7 +61,9 @@ async function configureRoleIds(
 ): Promise<string> {
   let roles = [];
   try {
+    const spinner = ora('正在获取角色列表...').start();
     roles = await businessService.getProjectRoles(projectId);
+    spinner.stop();
   } catch (error) {
     logger.error('❌ 获取角色列表失败:', error);
     // 如果获取失败，使用手动输入
@@ -85,24 +89,7 @@ async function configureRoleIds(
         }
         return true;
       },
-      theme: {
-        style: {
-          help: (text: string) => `\x1b[90m${123}\x1b[0m`, // 灰色
-          keysHelpTip: (keys: [key: string, action: string][]) => {
-            const actionMap: Record<string, string> = {
-              navigate: '上下移动',
-              select: '选择/取消',
-              all: '全选',
-              invert: '反选',
-              submit: '提交',
-            };
-            const tips = keys.map(
-              ([key, action]) => `${key} \x1b[90m${actionMap[action] || action}\x1b[0m`
-            );
-            return tips.join(' • ');
-          },
-        },
-      },
+      theme: globalTheme,
     });
 
     return selectedRoleIds.join(',');
@@ -231,7 +218,9 @@ export async function configCommand(): Promise<void> {
     });
 
     // 验证凭证
+    const spinner = ora('正在验证 IAM 凭证...').start();
     const validationResult = await businessService.validateCredentials();
+    spinner.stop();
 
     if (validationResult.success) {
       credentialsValid = true;
@@ -270,7 +259,9 @@ export async function configCommand(): Promise<void> {
   }
 
   try {
+    const spinner = ora('正在获取项目列表...').start();
     projects = await businessService!.getProjects(100);
+    spinner.stop();
   } catch (error: unknown) {
     logger.error(`❌ 获取项目列表失败: `, error);
     // 获取失败，使用手动输入
@@ -295,6 +286,7 @@ export async function configCommand(): Promise<void> {
       message: '请选择项目:',
       choices: projectChoices,
       default: defaultProjectId,
+      theme: globalTheme,
     });
   }
 

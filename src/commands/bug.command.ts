@@ -1,9 +1,11 @@
 import { checkbox } from '@inquirer/prompts';
+import ora from 'ora';
 import { BusinessService } from '../services/business.service';
 import { ConsoleTotal, DefectAnalysisType, IssueItemV2, IterationInfo } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { consoleTotal, issueLink } from '../utils/console';
 import { buildCsvRow, createHyperlinkFormula, writeCsvFile } from '../utils/csv-writer';
+import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 
 interface UserStats {
@@ -145,7 +147,6 @@ async function queryBugReportData(
  * 控制台输出产品缺陷率统计
  */
 function outputConsole(data: ConsoleTotal<UserStats>): void {
-  logger.info();
   consoleTotal(data);
 
   data.list.forEach((stats) => {
@@ -206,49 +207,47 @@ function outputJson(data: UserStats[]): void {
  * bug 命令入口
  */
 export async function bugCommand(cliOptions: CliOptions = {}): Promise<void> {
-  try {
-    const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
-    const businessService = new BusinessService(config);
+  const { projectId, roleIds, config, outputFormat } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
 
-    const iterations = await businessService.getIterations(projectId);
+  const iterations = await businessService.getIterations(projectId);
 
-    if (iterations.length === 0) {
-      throw new Error('未获取到任何迭代信息');
-    }
+  if (iterations.length === 0) {
+    throw new Error('未获取到任何迭代信息');
+  }
 
-    const iterationChoices = iterations.map((iteration) => ({
-      name: `${iteration.name} (${iteration.begin_time} ~ ${iteration.end_time})`,
-      value: iteration,
-      checked: false,
-    }));
+  const iterationChoices = iterations.map((iteration) => ({
+    name: `${iteration.name} (${iteration.begin_time} ~ ${iteration.end_time})`,
+    value: iteration,
+    checked: false,
+  }));
 
-    const selectedIterations = await checkbox({
-      message: '请选择要统计的迭代：',
-      choices: iterationChoices,
-      validate: (answer) => {
-        if (answer.length === 0) {
-          return '至少需要选择一个迭代';
-        }
-        return true;
-      },
-    });
+  const selectedIterations = await checkbox({
+    message: '请选择要统计的迭代：',
+    choices: iterationChoices,
+    validate: (answer) => {
+      if (answer.length === 0) {
+        return '至少需要选择一个迭代';
+      }
+      return true;
+    },
+    theme: globalTheme,
+  });
+  const spinner = ora('正在查询数据...').start();
+  const reportData = await queryBugReportData(
+    businessService,
+    projectId,
+    roleIds,
+    selectedIterations
+  );
 
-    const reportData = await queryBugReportData(
-      businessService,
-      projectId,
-      roleIds,
-      selectedIterations
-    );
-
-    if (outputFormat === 'console') {
-      outputConsole(reportData);
-    } else if (outputFormat === 'csv') {
-      outputCsv(reportData.list, projectId);
-    } else if (outputFormat === 'json') {
-      outputJson(reportData.list);
-    }
-  } catch (error) {
-    logger.error(`执行过程中发生错误: `, error);
-    process.exit(1);
+  spinner.stop();
+  logger.info();
+  if (outputFormat === 'console') {
+    outputConsole(reportData);
+  } else if (outputFormat === 'csv') {
+    outputCsv(reportData.list, projectId);
+  } else if (outputFormat === 'json') {
+    outputJson(reportData.list);
   }
 }
