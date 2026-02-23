@@ -660,3 +660,12 @@ export interface ConsoleTotal<T> {
   totalMap: [string, string | (() => string)][];
   list: T[];
 }
+
+export interface AddIssueNotesResponse {
+  result: AddIssueNotesResult; // 返回信息
+  status: string; // 返回状态
+}
+
+export interface AddIssueNotesResult {
+  issue: unknown;
+}

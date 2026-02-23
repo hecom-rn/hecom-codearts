@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import {
+  AddIssueNotesRequest,
+  AddIssueNotesResponse,
   ApiResponse,
   CachedToken,
   HuaweiCloudConfig,
@@ -429,6 +431,16 @@ export class ApiService {
     return this.request(`/v4/projects/${projectId}/issues`, {
       method: 'POST',
       data: issueData,
+    });
+  }
+
+  /**
+   * 工作项添加评论
+   */
+  async addIssueNotes(params: AddIssueNotesRequest): Promise<ApiResponse<AddIssueNotesResponse>> {
+    return this.request('/v2/issues/update-issue-notes', {
+      method: 'POST',
+      data: params,
     });
   }
 

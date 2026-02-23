@@ -187,6 +187,18 @@ export class BusinessService {
     return issuesResponse.data?.issues || [];
   }
 
+  async addIssueNote(projectId: string, issueId: number, content: string): Promise<unknown> {
+    const result = await this.apiService.addIssueNotes({
+      projectUUId: projectId,
+      id: String(issueId),
+      notes: content,
+    });
+    if (result.data?.status === 'success') {
+      return result.data.result.issue;
+    }
+    throw new Error(`添加工作项备注失败: ${result.data?.status || '未知错误'}`);
+  }
+
   /**
    * 统计工作项进度信息
    * @param issues 工作项列表
