@@ -63,7 +63,7 @@ availableConfigs.forEach((configItem) => {
 // daily 命令
 program
   .command('daily [date]')
-  .description('每日工时统计（默认日期为当天）')
+  .description('每日工时统计（默认日期为当天），日期格式：YYYY-MM-DD')
   .option('-r, --report', '显示总结报告', false)
   .action(async (date, options, command) => {
     const cliOptions = { ...command.parent.opts(), report: options.report };
@@ -74,7 +74,7 @@ program
 // work-hour 命令
 program
   .command('work-hour [year]')
-  .description('年度工时统计（默认当前年份）')
+  .description('年度工时统计（默认当前年份），年份格式：YYYY')
   .action(async (year, options, command) => {
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);
