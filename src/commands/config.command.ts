@@ -178,9 +178,10 @@ export async function configCommand(): Promise<void> {
         validate: (inputValue: string) => (inputValue.trim() ? true : 'CodeArts API 地址不能为空'),
       }),
       domain: await input({
-        message: '华为云账号名:',
+        message: '租户名/原华为云账号:',
         default: existingConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN] || '',
-        validate: (inputValue: string) => (inputValue.trim() ? true : '华为云账号名不能为空'),
+        validate: (inputValue: string) =>
+          inputValue.trim() ? true : '租户名/原华为云账号不能为空',
       }),
       username: await input({
         message: 'IAM 用户名:',
