@@ -4,7 +4,7 @@ import * as path from 'path';
 import { ConfigKey, ConfigMap, HuaweiCloudConfig, OutputFormat } from '../types';
 
 /**
- * 全局配置管理工具
+ * 配置管理工具
  * 配置文件存储在用户主目录下的 .hecom-codearts 目录
  */
 
@@ -21,21 +21,21 @@ function ensureConfigDir(): void {
 }
 
 /**
- * 获取全局配置文件路径
+ * 获取配置文件路径
  */
 export function getConfigPath(): string {
   return CONFIG_FILE;
 }
 
 /**
- * 检查全局配置文件是否存在
+ * 检查配置文件是否存在
  */
 export function configExists(): boolean {
   return fs.existsSync(CONFIG_FILE);
 }
 
 /**
- * 读取全局配置
+ * 读取配置
  */
 export function readConfig(): Partial<ConfigMap> {
   if (!configExists()) {
@@ -65,7 +65,7 @@ export function readConfig(): Partial<ConfigMap> {
       }
     }
   } catch (error) {
-    console.error('读取全局配置文件失败:', error);
+    console.error('读取配置文件失败:', error);
   }
 
   return config;
@@ -94,14 +94,14 @@ const CONFIG_GROUPS = [
 ];
 
 /**
- * 写入全局配置
+ * 写入配置
  * 支持动态配置项，自动按分组组织配置文件
  */
 export function writeConfig(config: Partial<ConfigMap>): void {
   ensureConfigDir();
 
   // 构建配置文件头部
-  let content = `# Hecom CodeArts 全局配置文件`;
+  let content = `# Hecom CodeArts 配置文件`;
 
   // 记录已写入的配置项
   const writtenKeys = new Set<ConfigKey>();
@@ -129,24 +129,24 @@ export function writeConfig(config: Partial<ConfigMap>): void {
   try {
     fs.writeFileSync(CONFIG_FILE, content, 'utf-8');
   } catch (error) {
-    throw new Error(`写入全局配置文件失败: ${error}`);
+    throw new Error(`写入配置文件失败: ${error}`);
   }
 }
 
 /**
- * 删除全局配置
+ * 删除配置
  */
 export function deleteConfig(): void {
   if (configExists()) {
     try {
       fs.unlinkSync(CONFIG_FILE);
     } catch (error) {
-      throw new Error(`删除全局配置文件失败: ${error}`);
+      throw new Error(`删除配置文件失败: ${error}`);
     }
   }
 }
 
-// 加载全局配置
+// 加载配置
 const globalConfig = configExists() ? readConfig() : {};
 
 export interface CliOptions {
@@ -163,12 +163,12 @@ export interface LoadedConfig {
 }
 
 /**
- * 加载配置，优先级：命令行参数 > 全局配置
+ * 加载配置，优先级：命令行参数 > 配置文件
  * @param cliOptions 命令行选项
  * @returns 加载的配置
  */
 export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
-  // 命令行参数 > 全局配置
+  // 命令行参数 > 配置文件
   const projectId = globalConfig[ConfigKey.PROJECT_ID];
   const roleIdStr = cliOptions.role || globalConfig[ConfigKey.ROLE_ID];
 

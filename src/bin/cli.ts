@@ -32,7 +32,7 @@ program
 // config 命令 - 交互式配置向导
 const configCmd = program
   .command('config')
-  .description('交互式配置向导，引导用户创建或更新全局配置文件')
+  .description('交互式配置向导，引导用户创建或更新配置文件')
   .action(async () => {
     showLogo();
     await configCommand();
@@ -98,7 +98,7 @@ async function checkConfigAndRun() {
   // 如果没有参数（直接执行 codearts），检测配置
   if (args.length === 0) {
     showLogo();
-    // 检查是否有全局配置
+    // 检查是否有配置文件
     const hasConfig = configExists();
 
     if (!hasConfig) {

@@ -123,13 +123,13 @@ bin/
 - `daily.command.ts`: 日报统计命令实现
 - `work-hour.command.ts`: 年度工时统计命令实现
 - `bug.command.ts`: 产品缺陷率统计命令逻辑
-- 命令函数接收可选参数，支持通过全局配置和 CLI 参数配置
+- 命令函数接收可选参数，支持通过配置和 CLI 参数配置
 
 #### 配置加载层（src/utils/config-loader.ts）
 
 负责配置合并逻辑：
 
-- 优先级：命令行参数 > 全局配置
+- 优先级：命令行参数 > 配置文件
 - 统一的配置加载接口
 - 类型安全的配置对象
 
@@ -140,11 +140,11 @@ bin/
 ### 关键文件说明
 
 - **`src/bin/cli.ts`**: CLI 入口，使用 Commander.js 定义命令和选项
-- **`src/commands/config.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建全局配置文件
+- **`src/commands/config.command.ts`**: 交互式配置向导，使用 inquirer 引导用户创建配置文件
 - **`src/commands/daily.command.ts`**: 日报统计核心逻辑（从 daily.ts 提取）
 - **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
 - **`src/commands/bug.command.ts`**: 产品缺陷率统计命令逻辑
-- **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和全局配置
+- **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和配置文件
 - **`src/utils/logger.ts`**: 日志工具（单例模式，支持多种输出格式）
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
 - **`src/services/business.service.ts`**: 面向具体业务场景的 API 封装，例如通过角色获取人员列表、查询迭代内所有 issue、统计工时数据等
@@ -376,11 +376,11 @@ async getMembersByRoleId(projectId: string, roleId: number): Promise<ProjectMemb
 
 ### 配置方式
 
-项目使用全局配置文件，位于用户主目录：`~/.hecom-codearts/config.env`
+项目使用配置文件，位于用户主目录：`~/.hecom-codearts/config.env`
 
 **使用前必须先运行 `codearts config` 进行配置。**
 
-配置优先级：**命令行参数 > 全局配置**
+配置优先级：**命令行参数 > 配置文件**
 
 ### 配置键枚举（ConfigKey）
 
@@ -426,15 +426,15 @@ const roleId = config[ConfigKey.ROLE_ID];
 const projectId = config['PROJECT_ID']; // 类型错误
 ```
 
-### 全局配置
+### 配置文件
 
-创建全局配置：
+创建配置文件：
 
 ```bash
 codearts config
 ```
 
-全局配置文件位置：`~/.hecom-codearts/config.env`
+配置文件位置：`~/.hecom-codearts/config.env`
 
 配置示例：
 
@@ -451,7 +451,7 @@ ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 
 ### CLI 参数优先级
 
-配置加载优先级：**命令行参数 > 全局配置**
+配置加载优先级：**命令行参数 > 配置文件**
 
 目前支持的 CLI 参数：
 
@@ -463,7 +463,7 @@ ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 
 ## 11. 编码最佳实践
 
-1. **不要硬编码**: 使用全局配置文件
+1. **不要硬编码**: 使用配置文件
 2. **避免重复代码**: 提取公共逻辑到独立函数
 3. **保持函数简洁**: 单个函数不超过 50 行（建议）
 4. **使用解构赋值**: 简化对象和数组操作

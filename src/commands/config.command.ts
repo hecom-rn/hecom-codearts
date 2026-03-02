@@ -122,7 +122,7 @@ async function inputPassword(): Promise<string> {
 }
 /**
  * 交互式配置向导命令
- * 引导用户创建或更新全局配置文件
+ * 引导用户创建或更新配置文件
  */
 export async function configCommand(): Promise<void> {
   logger.info('欢迎使用 Hecom CodeArts 配置向导');
@@ -134,7 +134,7 @@ export async function configCommand(): Promise<void> {
 
   if (configExists()) {
     const overwrite = await confirm({
-      message: '检测到已存在全局配置，是否覆盖？',
+      message: '检测到已存在配置文件，是否覆盖？',
       default: true,
     });
 
@@ -316,7 +316,7 @@ export async function configCommand(): Promise<void> {
 
   try {
     writeConfig(finalConfig);
-    logger.success('\n✅ 全局配置已成功保存');
+    logger.success('\n✅ 配置完成！');
     logger.info(`配置文件位置: ${getConfigPath()}`);
     logger.info('\n提示：配置文件包含敏感信息，请妥善保管。');
   } catch (error) {
@@ -332,7 +332,7 @@ export async function configCommand(): Promise<void> {
 export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<void> {
   // 检查配置文件是否存在
   if (!configExists()) {
-    logger.error('\n❌ 全局配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
+    logger.error('\n❌ 配置文件不存在，请先运行 `npx @hecom/codearts config` 创建配置。');
     process.exit(1);
   }
 

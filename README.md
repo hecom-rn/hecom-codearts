@@ -31,7 +31,7 @@ npx @hecom/codearts bug-rate "迭代1,迭代2"
 ### 3. 更新配置
 
 ```bash
-# 更新全局配置
+# 更新配置文件
 npx @hecom/codearts config
 
 # 单独更新角色配置
