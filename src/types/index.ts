@@ -306,9 +306,34 @@ export interface IssueStatus {
   name: string; // 状态名称
 }
 
+// 工作项状态ID枚举
+export enum IssueStatusId {
+  NEW_REQUIREMENT = 1, // 新需求
+  IN_PROGRESS = 2, // 进行中
+  RESOLVED = 3, // 已解决
+  TESTING = 4, // 测试中
+  CLOSED = 5, // 已关闭
+  PRODUCT_DESIGN = 7, // 产品设计
+  REVIEW_READY = 8, // 可评审
+  DEV_POOL = 9, // 开发池
+  DEVELOPING = 10, // 开发中
+  TEST_READY = 11, // 可提测
+  REOPENED = 15, // 重新打开
+  NEW_ISSUE = 17, // 新问题
+}
+
 export interface IssueTracker {
   id: number; // 类型id
   name: string; // 类型名称
+}
+
+// 工作项类型ID枚举
+export enum IssueTrackerId {
+  TASK = 2, // 任务
+  BUG = 3, // 缺陷
+  EPIC = 5, // Epic
+  FEATURE = 6, // Feature
+  STORY = 7, // Story
 }
 
 export interface IssueItem {
@@ -380,6 +405,28 @@ export interface AddIssueNotesRequest {
   notes: string; // 工作项的评论内容
   projectUUId: string; // 项目的32位uuid
   type?: string; // 工作项所属项目类型，scrum
+}
+
+// 工作项更新请求相关类型 (UpdateIssue)
+export interface UpdateIssueRequest {
+  actual_work_hours?: number; // 实际工时
+  assigned_id?: number; // 处理人id
+  begin_time?: string; // 预计开始时间，格式：YYYY-MM-DD
+  description?: string; // 工作项描述
+  developer_id?: number; // 开发人员id
+  domain_id?: number; // 领域id
+  done_ratio?: number; // 工作项完成度（0-100）
+  end_time?: string; // 预计结束时间，格式：YYYY-MM-DD
+  expected_work_hours?: number; // 预计工时
+  iteration_id?: number; // 迭代id
+  module_id?: number; // 模块id
+  name?: string; // 工作项标题
+  parent_issue_id?: number; // 父工作项id
+  priority_id?: number; // 优先级id
+  severity_id?: number; // 重要程度id
+  status_id?: number; // 状态id
+  tracker_id?: number; // 工作项类型id
+  new_custom_fields?: IssueNewCustomField[]; // 自定义属性值
 }
 
 export interface ListChildIssuesV4Response {
@@ -522,7 +569,38 @@ export type CustomFieldType =
   | 'radio' // 单选框
   | 'select' // 下拉选择
   | 'date' // 日期选择器
-  | 'number'; // 数字输入框
+  | 'number' // 数字输入框
+  | 'text' // 文本
+  | 'textArea' // 文本域
+  | 'user' // 用户选择
+  | 'time_date'; // 时间日期选择
+
+/**
+ * 缺陷相关自定义字段ID枚举
+ */
+export enum CustomFieldId {
+  // Bug专用字段
+  FEEDBACK_PERSON = 'custom_field20', // 反馈人
+  DEFECT_TECHNICAL_ANALYSIS = 'custom_field32', // 缺陷技术分析
+  IMPACT_SCOPE = 'custom_field40', // 影响范围
+  ENVIRONMENT = 'custom_field30', // 环境
+  TERMINAL_TYPE = 'custom_field24', // 终端类型
+  DEFECT_TYPE = 'custom_field36', // 缺陷类型
+  PRODUCT_MODULE = 'custom_field33', // 产品模块
+  CUSTOMER_FEEDBACK_NO = 'custom_field22', // 客户反馈编号
+  TEST_CASE_COVERAGE = 'custom_field34', // 测试用例覆盖
+  TEST_STAGE = 'custom_field23', // 测试阶段
+  COMPANY_NAME = 'custom_field17', // 企业名称
+  DEFECT_ROOT_CAUSE = 'custom_field28', // 缺陷根源
+  PROBLEM_CAUSE_AND_SOLUTION = 'custom_field39', // 问题原因及解决办法
+  RELEASE_TIME = 'custom_field18', // 发布时间
+  INTRODUCTION_PHASE = 'custom_field29', // 引入阶段
+  VERSION = 'custom_field37', // 版本
+  TESTER = 'custom_field26', // 测试人员
+  DEVELOPMENT_END = 'custom_field16', // 开发端
+  AI_RELATED = 'custom_field25', // AI相关
+  BRIEFING_TIME = 'custom_field38', // 交底时间
+}
 
 /**
  * 缺陷技术分析选项枚举
@@ -668,4 +746,45 @@ export interface AddIssueNotesResponse {
 
 export interface AddIssueNotesResult {
   issue: unknown;
+}
+
+// 当前用户信息相关类型 (ShowCurUserInfo)
+export interface CurrentUserInfo {
+  id: number; // 用户ID
+  name: string; // 用户名
+  nick_name: string; // 昵称
+  user_id: string; // 用户UUID
+  user_num_id: number; // 用户数字ID
+  domain_id: string; // 租户ID
+  domain_name: string; // 租户名称
+  email?: string; // 邮箱
+  phone?: string; // 电话
+  status?: number; // 用户状态
+}
+
+// 自定义字段相关类型 (GetCustomFields)
+export interface CustomFieldOption {
+  custom_field: string; // 自定义字段标识
+  type: CustomFieldType; // 字段类型
+  name: string; // 字段名称
+  options: string; // 字段选项，多个选项以逗号分隔
+  tracker_ids: number[]; // 适用的工作项类型ID列表
+  create_time: string; // 创建时间，ISO8601格式
+}
+
+export interface GetCustomFieldsRequest {
+  custom_fields: string[]; // 要查询的自定义字段标识列表
+}
+
+export interface GetCustomFieldsResponse {
+  datas: CustomFieldOption[]; // 自定义字段列表
+}
+
+// Bug修复相关类型
+export interface BugFixData {
+  defectAnalysis?: string; // 缺陷技术分析
+  problemReason?: string; // 问题原因
+  impactScope?: string; // 影响范围
+  introductionStage?: string; // 引入阶段（客户反馈类缺陷）
+  releaseDate?: string; // 发布日期（客户反馈类缺陷）
 }

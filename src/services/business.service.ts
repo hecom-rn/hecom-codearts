@@ -1,8 +1,12 @@
 import {
   AllWorkHourStats,
+  BugFixData,
   HuaweiCloudConfig,
   IssueItem,
   IssueItemV2,
+  IssueNewCustomField,
+  IssueStatusId,
+  IssueTrackerId,
   IterationInfo,
   IterationStatus,
   ProjectMember,
@@ -174,7 +178,7 @@ export class BusinessService {
 
     const issuesResponse = await this.apiService.getIssues(projectId, {
       iteration_ids: iterationIds,
-      tracker_ids: [2], // 2=Task(任务), 7=Story
+      tracker_ids: [IssueTrackerId.TASK], // Task
       assigned_ids: userIds,
       limit: 100,
       offset: 0,
@@ -228,9 +232,11 @@ export class BusinessService {
 
         stats[userId].count++;
 
-        // 如果状态是已关闭（id=5），expectedHours 取实际工时，否则取预估工时
+        // 如果状态是已关闭，expectedHours 取实际工时，否则取预估工时
         const expectedHours =
-          issue.status?.id === 5 ? issue.actual_work_hours || 0 : issue.expected_work_hours || 0;
+          issue.status?.id === IssueStatusId.CLOSED
+            ? issue.actual_work_hours || 0
+            : issue.expected_work_hours || 0;
 
         stats[userId].expectedHours += expectedHours;
         stats[userId].actualHours += issue.actual_work_hours || 0;
@@ -382,7 +388,7 @@ export class BusinessService {
       const issuesResponse = await this.apiService.getIssues(projectId, {
         iteration_ids: iterationIds,
         assigned_ids: userIds,
-        tracker_ids: [7], // 7=Story
+        tracker_ids: [IssueTrackerId.STORY], // Story
         include_deleted: false,
         limit: pageSize,
         offset: offset,
@@ -472,7 +478,7 @@ export class BusinessService {
     // Step 4: 为每个工时记录关联领域信息
     const enrichedWorkHours: (WorkHour & { type: string })[] = allWorkHours.map((workHour) => {
       const issue = issueDetailsMap.get(workHour.issue_id);
-      const isBug = issue?.tracker?.id === 3; // 3=Bug
+      const isBug = issue?.tracker?.id === IssueTrackerId.BUG;
       const type = isBug ? issue?.tracker?.name || '' : issue?.domain?.name || '未分配领域';
 
       return {
@@ -608,5 +614,228 @@ export class BusinessService {
     }
 
     return response.data.projects;
+  }
+
+  /**
+   * 查询当前用户的所有 Bug
+   * @param projectId 项目ID
+   * @param options 查询选项
+   * @param options.hasIteration 是否有迭代（true: 有迭代, false: 无迭代, undefined: 不过滤）
+   * @returns Bug 类型的工作项列表，按创建时间倒序排列
+   */
+  async getCurrentUserBugs(
+    projectId: string,
+    options: { hasIteration?: boolean } = {}
+  ): Promise<IssueItem[]> {
+    // Step 1: 获取当前用户信息
+    const userInfoResponse = await this.apiService.showCurUserInfo();
+    if (!userInfoResponse.success || !userInfoResponse.data) {
+      throw new Error(`获取当前用户信息失败: ${userInfoResponse.error || '未知错误'}`);
+    }
+
+    const currentUserId = userInfoResponse.data.user_id;
+
+    // Step 2: 分页查询所有 Bug（tracker_id = 3 为 Bug）
+    const allBugs: IssueItem[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const issuesResponse = await this.apiService.getIssues(projectId, {
+        assigned_ids: [currentUserId],
+        tracker_ids: [IssueTrackerId.BUG], // Bug
+        status_ids: [
+          IssueStatusId.NEW_ISSUE,
+          IssueStatusId.REOPENED,
+          IssueStatusId.NEW_REQUIREMENT,
+        ], // 可处理状态
+        include_deleted: false,
+        limit: pageSize,
+        offset: offset,
+      });
+
+      if (!issuesResponse.success) {
+        throw new Error(`获取Bug列表失败: ${issuesResponse.error || '未知错误'}`);
+      }
+
+      const bugs = issuesResponse.data?.issues || [];
+      allBugs.push(...bugs);
+
+      // 判断是否还有更多数据
+      const total = issuesResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    // Step 3: 按照迭代状态过滤
+    let filteredBugs = allBugs;
+    if (options.hasIteration !== undefined) {
+      filteredBugs = allBugs.filter((bug) => {
+        const hasIteration = bug.iteration && bug.iteration.id > 0;
+        return options.hasIteration ? hasIteration : !hasIteration;
+      });
+    }
+
+    // Step 4: 按创建时间倒序排列
+    filteredBugs.sort((a, b) => {
+      const timeA = new Date(a.created_time).getTime();
+      const timeB = new Date(b.created_time).getTime();
+      return timeB - timeA; // 倒序
+    });
+
+    return filteredBugs;
+  }
+
+  /**
+   * 批量获取自定义字段的选项
+   * @param projectId 项目ID
+   * @param customFieldIds 自定义字段ID列表
+   * @returns 自定义字段选项映射，key为字段ID，value为选项数组
+   */
+  async getCustomFieldOptions(
+    projectId: string,
+    customFieldIds: string[]
+  ): Promise<Record<string, string[]>> {
+    if (customFieldIds.length === 0) {
+      return {};
+    }
+
+    const response = await this.apiService.getCustomFields(projectId, customFieldIds);
+
+    if (!response.success || !response.data) {
+      throw new Error(`获取自定义字段信息失败: ${response.error || '未知错误'}`);
+    }
+
+    // 将自定义字段列表转换为 fieldId -> options 的映射
+    const optionsMap: Record<string, string[]> = {};
+    response.data.datas.forEach((field) => {
+      // 如果 options 为 null，返回空数组；否则将逗号分隔的字符串解析为数组
+      optionsMap[field.custom_field] = field.options
+        ? field.options.split(',').map((option) => option.trim())
+        : [];
+    });
+
+    return optionsMap;
+  }
+
+  /**
+   * 修复缺陷工作项
+   * 根据填写的缺陷分析信息更新缺陷工作项，仅当问题为缺陷且状态为可处理状态时才更新
+   * @param projectId 项目ID
+   * @param issue 选中的缺陷工作项
+   * @param bugFixData 缺陷分析数据
+   */
+  async fixBug(projectId: string, issue: IssueItem, bugFixData: BugFixData): Promise<void> {
+    const { defectAnalysis, problemReason, impactScope, introductionStage, releaseDate } =
+      bugFixData;
+
+    // 验证工作项是否为缺陷
+    if (issue.tracker?.id !== IssueTrackerId.BUG) {
+      throw new Error('选择的工作项不是缺陷类型');
+    }
+
+    // 验证工作项状态是否为可处理状态
+    // 可处理状态：17（新问题）、15（重新打开）、1（新需求）
+    if (
+      ![IssueStatusId.NEW_ISSUE, IssueStatusId.REOPENED, IssueStatusId.NEW_REQUIREMENT].includes(
+        issue.status?.id
+      )
+    ) {
+      throw new Error('缺陷工作项状态不可处理');
+    }
+
+    // 构建更新请求体
+    const newCustomFields: IssueNewCustomField[] = [];
+
+    if (defectAnalysis) {
+      newCustomFields.push({
+        custom_field: 'custom_field32',
+        field_name: '缺陷技术分析',
+        value: defectAnalysis,
+      });
+    }
+
+    if (problemReason) {
+      newCustomFields.push({
+        custom_field: 'custom_field39',
+        field_name: '问题原因',
+        value: problemReason,
+      });
+    }
+
+    if (impactScope) {
+      newCustomFields.push({
+        custom_field: 'custom_field40',
+        field_name: '影响范围',
+        value: impactScope,
+      });
+    }
+
+    // 检查缺陷类型是否为客户反馈
+    const issueCustomFields = issue.new_custom_fields || [];
+    const issueDefectTypeField = issueCustomFields.find(
+      (field) => field?.custom_field === 'custom_field36' || field?.field_name === '缺陷类型'
+    );
+
+    const issueDefectType = issueDefectTypeField?.value || '';
+    const isCustomerFeedback = issueDefectType === '客户反馈';
+
+    if (isCustomerFeedback) {
+      if (introductionStage) {
+        newCustomFields.push({
+          custom_field: 'custom_field29',
+          field_name: '引入阶段',
+          value: introductionStage,
+        });
+      }
+
+      if (releaseDate) {
+        // 将日期字符串转换为时间戳
+        const releaseTimestamp = this.parseDateToTimestamp(releaseDate);
+        if (releaseTimestamp !== null) {
+          newCustomFields.push({
+            custom_field: 'custom_field18',
+            field_name: '发布日期',
+            value: String(releaseTimestamp),
+          });
+        }
+      }
+    }
+
+    // 只有在有自定义字段时才发送更新请求
+    if (newCustomFields.length > 0) {
+      const updateData = {
+        status_id: IssueStatusId.RESOLVED, // 设置状态为已解决
+        new_custom_fields: newCustomFields,
+      };
+
+      // 如果处理人不是创建人，则更新开发人员和处理人
+      if (issue.assigned_user?.id !== issue.creator?.id) {
+        Object.assign(updateData, {
+          developer_id: issue.assigned_user?.id, // 开发人员设置为当前处理人
+          assigned_id: issue.creator?.id, // 处理人设置为创建人
+        });
+      }
+
+      await this.apiService.updateIssue(projectId, String(issue.id), updateData);
+    }
+  }
+
+  /**
+   * 将日期字符串解析为时间戳
+   * @param dateStr 日期字符串，格式：YYYY-MM-DD
+   * @returns 毫秒时间戳，如果解析失败返回 null
+   */
+  private parseDateToTimestamp(dateStr: string): number | null {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        return null;
+      }
+      return date.getTime();
+    } catch {
+      return null;
+    }
   }
 }

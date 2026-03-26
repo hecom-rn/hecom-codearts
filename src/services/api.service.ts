@@ -4,6 +4,8 @@ import {
   AddIssueNotesResponse,
   ApiResponse,
   CachedToken,
+  CurrentUserInfo,
+  GetCustomFieldsResponse,
   HuaweiCloudConfig,
   IamTokenRequest,
   IamTokenResponse,
@@ -20,6 +22,7 @@ import {
   RequestOptions,
   ShowProjectWorkHoursRequest,
   ShowProjectWorkHoursResponse,
+  UpdateIssueRequest,
 } from '../types';
 
 /**
@@ -450,7 +453,7 @@ export class ApiService {
   async updateIssue(
     projectId: string,
     issueId: string,
-    issueData: unknown
+    issueData: UpdateIssueRequest
   ): Promise<ApiResponse<unknown>> {
     return this.request(`/v4/projects/${projectId}/issues/${issueId}`, {
       method: 'PUT',
@@ -507,6 +510,15 @@ export class ApiService {
   }
 
   /**
+   * 获取当前用户信息
+   */
+  async showCurUserInfo(): Promise<ApiResponse<CurrentUserInfo>> {
+    return this.request('/v4/user', {
+      method: 'GET',
+    });
+  }
+
+  /**
    * 按用户查询工时（单项目）
    */
   async showProjectWorkHours(
@@ -519,6 +531,21 @@ export class ApiService {
         offset: 0,
         limit: 10,
         ...params,
+      },
+    });
+  }
+
+  /**
+   * 获取自定义字段信息
+   */
+  async getCustomFields(
+    projectId: string,
+    customFieldIds: string[]
+  ): Promise<ApiResponse<GetCustomFieldsResponse>> {
+    return this.request(`/v4/projects/${projectId}/issues/custom-fields`, {
+      method: 'POST',
+      data: {
+        custom_fields: customFieldIds,
       },
     });
   }
