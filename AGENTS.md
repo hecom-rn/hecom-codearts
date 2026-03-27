@@ -22,6 +22,8 @@ Focus solely on production code implementation without examples, documentation, 
 - 生成日报统计（每日工时、Bug 修复、工作进度）
 - 生成年度工时统计报表（按人员、领域分组）
 - 统计迭代中的产品缺陷率（按处理人分组）
+- 交互式修复当前用户的 bug，填写缺陷分析信息
+- Bug 列表查询与多维度 ECharts 可视化分析（生成 HTML 报告）
 - 支持 IAM Token 自动认证和缓存
 
 ### 技术栈
@@ -50,6 +52,8 @@ codearts config                 # 交互式配置向导
 codearts daily                # 运行日报统计（默认当天）
 codearts work-hour            # 运行年度工时统计（当前年份）
 codearts bug-rate "迭代1,迭代2"  # 统计指定迭代的产品缺陷率
+codearts fix                  # 交互式修复当前用户的 bug，填写缺陷分析信息
+codearts rebug                # Bug 列表查询与多维度可视化分析
 
 # 本地开发
 npm run dev                            # 本地执行命令
@@ -86,8 +90,18 @@ src/
 │   ├── bug.command.ts     # 产品缺陷率统计命令逻辑
 │   ├── config.command.ts     # 交互式配置向导
 │   ├── daily.command.ts    # 日报命令逻辑
+│   ├── fix.command.ts      # 交互式修复 bug 命令逻辑
+│   ├── rebug.command.ts    # Bug 列表查询与可视化分析命令逻辑
 │   ├── work-hour.command.ts# 工时统计命令逻辑
 │   └── index.ts            # 命令导出
+├── charts/                 # ECharts 图表模块
+│   ├── chart.interface.ts  # ChartModule 接口定义
+│   ├── renderer.ts         # HTML 页面生成器
+│   ├── index.ts            # 导出所有图表模块数组
+│   └── modules/            # 图表模块（每个分析维度一个文件）
+│       ├── bug-by-defect-analysis.ts  # 按缺陷技术分析分布（饼图）
+│       ├── bug-by-assignee.ts         # 按处理人分布（横向柱状图）
+│       └── bug-by-module.ts           # 按模块分布（柱状图）
 ├── services/               # API 服务层
 │   ├── api.service.ts      # 华为云基础 API 封装
 │   └── business.service.ts # 业务场景 API 封装
@@ -111,7 +125,7 @@ bin/
 使用 Commander.js 框架构建命令行工具：
 
 - 定义全局选项（--role等）
-- 注册子命令（config, daily, work-hour, bug-rate）
+- 注册子命令（config, daily, work-hour, bug-rate, fix, rebug）
 - 处理命令行参数解析
 - 提供 --help 帮助信息
 
@@ -123,6 +137,8 @@ bin/
 - `daily.command.ts`: 日报统计命令实现
 - `work-hour.command.ts`: 年度工时统计命令实现
 - `bug.command.ts`: 产品缺陷率统计命令逻辑
+- `fix.command.ts`: 交互式修复 bug，填写缺陷分析信息（使用 inquirer）
+- `rebug.command.ts`: Bug 列表查询与多维度 ECharts 可视化分析
 - 命令函数接收可选参数，支持通过配置和 CLI 参数配置
 
 #### 配置加载层（src/utils/config-loader.ts）
@@ -144,6 +160,11 @@ bin/
 - **`src/commands/daily.command.ts`**: 日报统计核心逻辑（从 daily.ts 提取）
 - **`src/commands/work-hour.command.ts`**: 年度工时统计核心逻辑（从 workHour.ts 提取）
 - **`src/commands/bug.command.ts`**: 产品缺陷率统计命令逻辑
+- **`src/commands/fix.command.ts`**: 交互式修复 bug，引导用户填写缺陷技术分析等字段
+- **`src/commands/rebug.command.ts`**: Bug 列表查询与多维度 ECharts 可视化分析，生成 HTML 报告
+- **`src/charts/chart.interface.ts`**: ChartModule 接口定义
+- **`src/charts/renderer.ts`**: HTML 页面生成器，将 Bug 数据渲染为 ECharts 报告
+- **`src/charts/index.ts`**: 导出所有图表模块数组（`allCharts`）
 - **`src/utils/config-loader.ts`**: 配置加载器，合并 CLI 参数和配置文件
 - **`src/utils/logger.ts`**: 日志工具（单例模式，支持多种输出格式）
 - **`src/services/api.service.ts`**: 华为云基础 API 封装，包含 IAM Token 认证、项目管理、工作项查询、工时管理等接口
@@ -474,5 +495,5 @@ ROLE_ID=1,2,3  # 逗号分隔的多个角色ID
 
 ---
 
-**本文档版本**: 2026-02-13  
+**本文档版本**: 2026-03-27  
 **适用于**: AI 编码代理（GitHub Copilot, Cursor, OpenCode 等）
