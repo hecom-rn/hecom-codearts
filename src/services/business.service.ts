@@ -1,6 +1,8 @@
 import {
   AllWorkHourStats,
   BugFixData,
+  CustomField,
+  CustomFieldId,
   HuaweiCloudConfig,
   IssueItem,
   IssueItemV2,
@@ -685,6 +687,57 @@ export class BusinessService {
     });
 
     return filteredBugs;
+  }
+
+  /**
+   * 根据迭代 ID 和终端类型查询所有 Bug（分页获取全量）
+   * @param projectId 项目ID
+   * @param iterationIds 迭代 ID 列表
+   * @param terminalTypes 终端类型列表（对应 custom_field24），为空则不过滤
+   * @returns Bug 类型工作项列表
+   */
+  async getBugsByIterationsAndTerminals(
+    projectId: string,
+    iterationIds: number[],
+    terminalTypes: string[]
+  ): Promise<IssueItem[]> {
+    if (iterationIds.length === 0) {
+      return [];
+    }
+
+    const customFieldsFilter: CustomField[] =
+      terminalTypes.length > 0
+        ? [{ custom_field: CustomFieldId.TERMINAL_TYPE, value: terminalTypes.join(',') }]
+        : [];
+
+    const allBugs: IssueItem[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const issuesResponse = await this.apiService.getIssues(projectId, {
+        tracker_ids: [IssueTrackerId.BUG],
+        iteration_ids: iterationIds,
+        custom_fields: customFieldsFilter.length > 0 ? customFieldsFilter : undefined,
+        include_deleted: false,
+        limit: pageSize,
+        offset,
+      });
+
+      if (!issuesResponse.success) {
+        throw new Error(`查询 Bug 失败: ${issuesResponse.error || '未知错误'}`);
+      }
+
+      const bugs = issuesResponse.data?.issues || [];
+      allBugs.push(...bugs);
+
+      const total = issuesResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allBugs;
   }
 
   /**
