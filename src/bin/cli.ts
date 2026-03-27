@@ -11,6 +11,7 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
+import { rebugCommand } from '../commands/rebug.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
@@ -100,6 +101,16 @@ program
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);
     await fixCommand(cliOptions);
+  });
+
+// rebug 命令
+program
+  .command('rebug')
+  .description('Bug 列表交互式查询与多维度可视化分析')
+  .action(async (options, command) => {
+    const cliOptions = command.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await rebugCommand(cliOptions);
   });
 
 // 检查配置并自动执行 config 命令
