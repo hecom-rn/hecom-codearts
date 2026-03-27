@@ -153,6 +153,7 @@ export interface CliOptions {
   role?: string;
   output?: string;
   report?: boolean;
+  outputDir?: string;
 }
 
 export interface LoadedConfig {

@@ -107,8 +107,12 @@ program
 program
   .command('rebug')
   .description('Bug 列表交互式查询与多维度可视化分析')
+  .option(
+    '--output-dir <path>',
+    '输出 HTML 报告的目录（默认输出到系统 cache 目录，指定此参数则输出到当前目录）'
+  )
   .action(async (options, command) => {
-    const cliOptions = command.parent.opts();
+    const cliOptions = { ...command.parent.opts(), outputDir: options.outputDir };
     logger.setOutputFormat(cliOptions.output);
     await rebugCommand(cliOptions);
   });

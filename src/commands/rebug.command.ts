@@ -98,7 +98,8 @@ export async function rebugCommand(cliOptions: CliOptions = {}): Promise<void> {
 
     let reportPath: string;
     try {
-      reportPath = renderReport(allBugs, allCharts, meta);
+      const outputDir = cliOptions.outputDir || undefined;
+      reportPath = renderReport(allBugs, allCharts, meta, outputDir);
     } catch (error) {
       logger.error(`生成报告文件失败: ${String(error)}`);
       return;

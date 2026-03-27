@@ -14,14 +14,45 @@ export interface ReportMeta {
 
 /**
  * 生成 HTML 报告并写入文件，返回文件路径。
+ * @param bugs Bug 列表
+ * @param charts 图表模块列表
+ * @param meta 报告元数据
+ * @param outputDir 输出目录，若不指定则使用系统 cache 目录
  * 若文件写入失败，将 HTML 内容通过 logger 输出作为兜底，然后抛出错误。
  */
-export function renderReport(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): string {
+export function renderReport(
+  bugs: IssueItem[],
+  charts: ChartModule[],
+  meta: ReportMeta,
+  outputDir?: string
+): string {
   const d = new Date(meta.generatedAt);
   const pad = (n: number) => String(n).padStart(2, '0');
   const timestamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   const filename = `rebug-report-${timestamp}.html`;
-  const outputPath = path.join(process.cwd(), filename);
+
+  // 如果未指定输出目录，使用系统 cache 目录
+  let targetDir = outputDir;
+  if (!targetDir) {
+    const os = require('os');
+    const platform = process.platform;
+    if (platform === 'darwin') {
+      targetDir = path.join(os.homedir(), 'Library', 'Caches', 'hecom-codearts');
+    } else if (platform === 'linux') {
+      targetDir = path.join(os.homedir(), '.cache', 'hecom-codearts');
+    } else if (platform === 'win32') {
+      targetDir = path.join(os.homedir(), 'AppData', 'Local', 'Temp', 'hecom-codearts');
+    } else {
+      targetDir = path.join(os.tmpdir(), 'hecom-codearts');
+    }
+  }
+
+  // 确保目录存在
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  const outputPath = path.join(targetDir, filename);
 
   const html = buildHtml(bugs, charts, meta);
 
