@@ -1,0 +1,33 @@
+import { IssueItem } from '../../types';
+import { ChartModule } from '../chart.interface';
+
+export const bugByDefectAnalysisChart: ChartModule = {
+  title: '缺陷技术分析分布',
+  buildOption(bugs: IssueItem[]): object {
+    const countMap = new Map<string, number>();
+
+    bugs.forEach((bug) => {
+      const field = bug.new_custom_fields?.find((f) => f.custom_field === 'custom_field32');
+      const value = field?.value || '未填写';
+      countMap.set(value, (countMap.get(value) || 0) + 1);
+    });
+
+    const data = Array.from(countMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, value }));
+
+    return {
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      legend: { orient: 'vertical', left: 'left', type: 'scroll' },
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: true,
+          label: { show: true, formatter: '{b}: {d}%' },
+          data,
+        },
+      ],
+    };
+  },
+};
