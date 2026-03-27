@@ -123,12 +123,12 @@ import { IssueItem } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 export const bugByAssigneeChart: ChartModule = {
-  title: '处理人 Bug 数量',
+  title: '修复人 Bug 数量',
   buildOption(bugs: IssueItem[]): object {
     const countMap = new Map<string, number>();
 
     bugs.forEach((bug) => {
-      const name = bug.assigned_user?.nick_name || '未分配';
+      const name = bug.developer?.nick_name || '未设置';
       countMap.set(name, (countMap.get(name) || 0) + 1);
     });
 
@@ -437,7 +437,7 @@ git commit -m "feat: add HTML report renderer"
 
 ```typescript
 /**
- * 根据迭代 ID 和终端类型查询所有 Bug（分页获取全量）
+ * 根据迭代 ID 和终端类型查询有效 Bug（分页获取全量）
  * @param projectId 项目ID
  * @param iterationIds 迭代 ID 列表
  * @param terminalTypes 终端类型列表（对应 custom_field24），为空则不过滤
@@ -484,7 +484,7 @@ async getBugsByIterationsAndTerminals(
     hasMore = offset < total;
   }
 
-  return allBugs;
+  return allBugs.filter((bug) => bug.status?.id !== IssueStatusId.REJECTED);
 }
 ```
 

@@ -313,13 +313,20 @@ export enum IssueStatusId {
   RESOLVED = 3, // 已解决
   TESTING = 4, // 测试中
   CLOSED = 5, // 已关闭
+  REJECTED = 6, // 已拒绝
   PRODUCT_DESIGN = 7, // 产品设计
   REVIEW_READY = 8, // 可评审
   DEV_POOL = 9, // 开发池
   DEVELOPING = 10, // 开发中
   TEST_READY = 11, // 可提测
+  HANDOFF_EXPERIENCE = 12, // 转体验
+  ACCEPTED = 13, // 接受处理
+  VERIFIED = 14, // 已验证
   REOPENED = 15, // 重新打开
+  POSTPONED = 16, // 延期
   NEW_ISSUE = 17, // 新问题
+  CONVERTED_TO_REQUIREMENT = 18, // 转需求
+  PENDING_TEST = 19, // 待测试
 }
 
 export interface IssueTracker {

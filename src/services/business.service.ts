@@ -690,7 +690,7 @@ export class BusinessService {
   }
 
   /**
-   * 根据迭代 ID 和终端类型查询所有 Bug（分页获取全量）
+   * 根据迭代 ID 和终端类型查询有效 Bug（分页获取全量）
    * @param projectId 项目ID
    * @param iterationIds 迭代 ID 列表
    * @param terminalTypes 终端类型列表（对应 custom_field24），为空则不过滤
@@ -737,7 +737,7 @@ export class BusinessService {
       hasMore = offset < total;
     }
 
-    return allBugs;
+    return allBugs.filter((bug) => bug.status?.id !== IssueStatusId.REJECTED);
   }
 
   /**

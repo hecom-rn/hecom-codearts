@@ -2,12 +2,12 @@ import { IssueItem } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 export const bugByAssigneeChart: ChartModule = {
-  title: '处理人 Bug 数量',
+  title: '修复人 Bug 数量',
   buildOption(bugs: IssueItem[]): object {
     const countMap = new Map<string, number>();
 
     bugs.forEach((bug) => {
-      const name = bug.assigned_user?.nick_name || '未分配';
+      const name = bug.developer?.nick_name || '未设置';
       countMap.set(name, (countMap.get(name) || 0) + 1);
     });
 

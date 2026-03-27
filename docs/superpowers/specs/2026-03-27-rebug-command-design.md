@@ -156,7 +156,7 @@ interface ReportMeta {
 | 文件                        | 图表类型   | 分析维度           | 数据来源字段                        |
 | --------------------------- | ---------- | ------------------ | ----------------------------------- |
 | `bug-by-defect-analysis.ts` | 饼图       | 按缺陷技术分析分布 | `new_custom_fields[custom_field32]` |
-| `bug-by-assignee.ts`        | 横向柱状图 | 按处理人 Bug 数量  | `assigned_user.nick_name`           |
+| `bug-by-assignee.ts`        | 横向柱状图 | 按修复人 Bug 数量  | `developer.nick_name`           |
 | `bug-by-module.ts`          | 柱状图     | 按模块 Bug 数量    | `module.name`                       |
 
 ---
