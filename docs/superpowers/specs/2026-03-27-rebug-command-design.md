@@ -113,7 +113,7 @@ apiService.getIssues(projectId, {
 
 ### 迭代加载
 
-调用 `businessService.getIterations(projectId, { limit: 12 })` 获取最近 12 个迭代。
+调用 `businessService.getIterations(projectId, { limit: 12 })` 获取迭代列表的前 12 条（顺序依赖 API 默认排序）。
 
 ### 终端类型选项获取
 
@@ -181,7 +181,7 @@ program
 ## 9. 错误处理
 
 - 获取迭代列表失败 → 抛出错误，打印提示退出
-- 获取自定义字段失败 → 跳过终端类型筛选步骤，直接查询所有 Bug
+- 获取自定义字段失败 → 命令层 `try-catch` 该调用，跳过终端类型筛选步骤，直接查询所有 Bug（不传 `custom_fields` 参数）
 - Bug 查询失败 → 抛出错误，打印提示退出
 - HTML 文件写入失败 → 打印错误信息，同时将 HTML 内容输出到控制台作为兜底
 
