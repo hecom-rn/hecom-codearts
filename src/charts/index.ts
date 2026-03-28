@@ -7,10 +7,10 @@ import { bugByDeveloperHoursChart } from './modules/bug-by-developer-hours';
 import { bugOpenPriorityHeatmapChart } from './modules/bug-open-priority-heatmap';
 
 export const allCharts: ChartModule[] = [
-  bugByDefectAnalysisChart,
-  bugByAssigneeChart,
   bugByModuleChart,
+  bugByDefectAnalysisChart,
   bugByFixDurationChart,
-  bugByDeveloperHoursChart,
   bugOpenPriorityHeatmapChart,
+  bugByAssigneeChart,
+  bugByDeveloperHoursChart,
 ];

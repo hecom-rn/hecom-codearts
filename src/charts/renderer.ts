@@ -73,17 +73,56 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
       (chart, i) =>
         `<div class="chart-card">
           <div class="chart-title">${chart.title}</div>
-          <div id="chart-${i}" style="height:400px;"></div>
+          <div id="chart-${i}" class="chart-canvas"></div>
         </div>`
     )
     .join('\n');
 
-  const chartScripts = charts
-    .map((chart, i) => {
-      const option = JSON.stringify(chart.buildOption(bugs));
-      return `echarts.init(document.getElementById('chart-${i}')).setOption(${option});`;
-    })
-    .join('\n');
+  const chartScripts =
+    charts
+      .map((chart, i) => {
+        const option = JSON.stringify(chart.buildOption(bugs));
+        return `(() => {
+        const el = document.getElementById('chart-${i}');
+        if (!el) return;
+        const myChart = echarts.init(el);
+        const defaultTheme = {
+          color: ['#4A6CF7', '#6AD3FF', '#6BCB9B', '#FFD66B', '#FF9A76', '#7E63FF', '#FFA2EC'],
+          textStyle: { color: '#2b2b2b', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+          tooltip: { backgroundColor: 'rgba(0,0,0,0.75)', textStyle: { color: '#fff' } },
+          legend: { textStyle: { color: '#666' } },
+          axis: { axisLine: { lineStyle: { color: '#e9edf1' } }, axisLabel: { color: '#9aa0a6' }, splitLine: { lineStyle: { color: '#f0f3f7' } } }
+        };
+        // merge defaults shallowly; chart option will override defaults where provided
+        const userOption = ${option};
+        const merged = Object.assign({}, defaultTheme, userOption);
+        myChart.setOption(merged, true);
+        // store instance for global resize handling
+        window.__HECOM_CHARTS = window.__HECOM_CHARTS || [];
+        window.__HECOM_CHARTS.push(myChart);
+        // ensure initial render after layout
+        setTimeout(() => myChart.resize(), 60);
+      })();`;
+      })
+      .join('\n') +
+    `
+    ;(function(){
+      if (window.__HECOM_CHARTS_RESIZE_ADDED) return;
+      window.__HECOM_CHARTS_RESIZE_ADDED = true;
+      let _rt;
+      function resizeAll(){
+        (window.__HECOM_CHARTS || []).forEach(c => { try { c.resize(); } catch(e){} });
+      }
+      window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(resizeAll, 120); });
+      window.addEventListener('load', () => setTimeout(resizeAll, 100));
+      // in case layout changes without window resize (e.g. CSS media query), observe container
+      try {
+        const ro = new ResizeObserver(() => { clearTimeout(_rt); _rt = setTimeout(resizeAll, 80); });
+        document.querySelectorAll('.chart-canvas').forEach(el => ro.observe(el));
+      } catch (e) {
+        // ResizeObserver not available -> fallback only to window resize
+      }
+    })();`;
 
   const iterationsText = meta.iterationNames.join(', ') || '全部';
   const terminalText = meta.terminalTypes.join(', ') || '全部';
@@ -95,20 +134,36 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bug 分析报告</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
-    .header { background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .header h1 { margin: 0 0 16px; font-size: 22px; color: #1a1a1a; }
-    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-    .meta-item { background: #f8f9fa; border-radius: 6px; padding: 12px; }
-    .meta-label { font-size: 12px; color: #888; margin-bottom: 4px; }
-    .meta-value { font-size: 14px; font-weight: 600; color: #333; }
-    .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-    .chart-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .chart-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }
-    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    :root{ --bg:#f5f7fa; --card:#ffffff; --muted:#9aa0a6; --text:#2b2b2b; --accent:#4A6CF7; }
+    html,body{height:100%;}
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 28px 28px 64px; background: var(--bg); color: var(--text); -webkit-font-smoothing:antialiased; }
+    .container{max-width:1200px;margin:0 auto}
+    .header { background: var(--card); border-radius: 10px; padding: 28px; margin-bottom: 22px; box-shadow: 0 6px 18px rgba(18,23,34,0.06); }
+    .header h1 { margin: 0 0 10px; font-size: 20px; color: #111827; }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+    .meta-item { background: #f8f9fb; border-radius: 8px; padding: 14px; }
+    .meta-label { font-size: 12px; color: #818a91; margin-bottom: 6px; }
+    .meta-value { font-size: 15px; font-weight: 700; color: #111827; }
+    .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; align-items: start; }
+    .chart-card { background: var(--card); border-radius: 10px; padding: 18px; box-shadow: 0 6px 18px rgba(18,23,34,0.04); display:flex; flex-direction:column; }
+    .chart-title { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 12px; }
+    .chart-canvas { width:100%; height:400px; }
+    .page-footer-spacer{height:56px;flex:0 0 56px}
+    /* card footer or small notes */
+    .muted { color: var(--muted); font-size:12px }
+
+    @media (max-width: 1199px){ .container{max-width:980px} }
+    @media (max-width: 900px) {
+      body{padding:16px}
+      .charts-grid { grid-template-columns: 1fr; }
+      .chart-canvas{height:320px}
+      .header { padding:18px }
+    }
+    @media (max-width: 480px){ .chart-canvas{height:280px} }
   </style>
 </head>
 <body>
+  <div class="container">
   <div class="header">
     <h1>Bug 分析报告</h1>
     <div class="meta-grid">
@@ -120,6 +175,8 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
   </div>
   <div class="charts-grid">
     ${chartContainers}
+  </div>
+  <div class="page-footer-spacer" aria-hidden="true"></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
   <script>
