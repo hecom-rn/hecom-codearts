@@ -53,10 +53,13 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       return;
     }
 
-    // Step 5: 填写缺陷分析信息
+    // Step 5: 检查是否为客户反馈 bug
+    const isCustomerFeedback = checkIsCustomerFeedback(selectedBug);
+
+    // Step 6: 填写缺陷分析信息
     const bugFixData: BugFixData = {};
 
-    // 5.1: 选择缺陷技术分析（必填）
+    // 6.1: 选择缺陷技术分析（必填）
     const defectAnalysisOptions = customFieldOptions[CustomFieldId.DEFECT_TECHNICAL_ANALYSIS] || [];
     if (defectAnalysisOptions.length === 0) {
       logger.error('无法获取缺陷技术分析选项');
@@ -71,16 +74,24 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       })),
     });
 
-    // 5.2: 填写问题原因及解决办法（可选）
+    // 6.2: 填写问题原因及解决办法
     const problemReason = await input({
-      message: '请输入问题原因及解决办法（可选，留空跳过）',
+      message: isCustomerFeedback
+        ? '请输入问题原因及解决办法（必填）'
+        : '请输入问题原因及解决办法（可选，留空跳过）',
+      validate: (value) => {
+        if (isCustomerFeedback && !value.trim()) {
+          return '问题原因及解决办法不能为空';
+        }
+        return true;
+      },
     });
 
     if (problemReason.trim()) {
       bugFixData.problemReason = problemReason;
     }
 
-    // 5.3: 填写影响范围（可选）
+    // 6.3: 填写影响范围（可选）
     const impactScope = await input({
       message: '请输入影响范围（可选，留空跳过）',
     });
@@ -89,11 +100,8 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       bugFixData.impactScope = impactScope;
     }
 
-    // Step 6: 检查是否为客户反馈 bug
-    const isCustomerFeedback = checkIsCustomerFeedback(selectedBug);
-
     if (isCustomerFeedback) {
-      // 6.1: 选择引入阶段（必填）
+      // 6.4: 选择引入阶段（必填）
       const introductionPhaseOptions = customFieldOptions[CustomFieldId.INTRODUCTION_PHASE] || [];
 
       if (introductionPhaseOptions.length === 0) {
@@ -112,7 +120,7 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
           })),
       });
 
-      // 6.2: 输入发布时间（必填）
+      // 6.5: 输入发布时间（必填）
       let releaseDate: string;
       let validDate = false;
 
@@ -235,7 +243,7 @@ async function showSummaryAndConfirm(
   logger.info(`Bug ID: #${bug.id}`);
   logger.info(`Bug 标题: ${bug.name}`);
   logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis || '未填写'}`);
-  logger.info(`问题原因: ${bugFixData.problemReason || '未填写'}`);
+  logger.info(`问题原因及解决办法: ${bugFixData.problemReason || '未填写'}`);
   logger.info(`影响范围: ${bugFixData.impactScope || '未填写'}`);
 
   if (isCustomerFeedback) {
