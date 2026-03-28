@@ -18,7 +18,7 @@ export const bugByDefectAnalysisChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { orient: 'vertical', left: 'left', type: 'scroll', textStyle: { color: '#666' } },
+      legend: { orient: 'vertical', left: 'left', type: 'scroll' },
       series: [
         {
           type: 'pie',
@@ -28,7 +28,6 @@ export const bugByDefectAnalysisChart: ChartModule = {
             show: true,
             position: 'outside',
             formatter: '{b}: {d}%',
-            color: '#111827',
           },
           labelLine: { length: 18, length2: 6, lineStyle: { width: 1 } },
           data,

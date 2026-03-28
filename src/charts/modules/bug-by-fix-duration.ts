@@ -29,20 +29,20 @@ export const bugByFixDurationChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '6%', right: '6%', bottom: '8%', containLabel: true },
+      // grid: { left: '6%', right: '6%', bottom: '8%', containLabel: true },
       xAxis: {
         type: 'category',
         data: [...BUCKETS],
         axisLine: { show: false },
         axisTick: { show: false },
       },
-      yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: '#f0f3f7' } } },
+      yAxis: { type: 'value', minInterval: 1 },
       series: [
         {
           type: 'bar',
           data: values,
-          label: { show: true, position: 'top', color: '#111827' },
-          itemStyle: { color: '#FFD66B', borderRadius: [6, 6, 0, 0] },
+          label: { show: true, position: 'top' },
+          itemStyle: { borderRadius: [6, 6, 0, 0] },
           barWidth: '46%',
         },
       ],

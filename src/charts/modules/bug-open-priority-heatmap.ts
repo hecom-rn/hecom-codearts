@@ -48,18 +48,16 @@ export const bugOpenPriorityHeatmapChart: ChartModule = {
         formatter: (params: { data: number[] }) =>
           `${yCategories[params.data[1]]} / ${xCategories[params.data[0]]}: ${params.data[2]} 个`,
       },
-      grid: { left: '4%', right: '4%', bottom: '12%', containLabel: true },
+      // grid: { left: '4%', right: '4%', bottom: '12%', containLabel: true },
       xAxis: {
         type: 'category',
         data: xCategories,
         splitArea: { show: true },
-        axisLabel: { color: '#666' },
       },
       yAxis: {
         type: 'category',
         data: yCategories,
         splitArea: { show: true },
-        axisLabel: { color: '#666' },
       },
       visualMap: {
         min: 0,
@@ -68,7 +66,6 @@ export const bugOpenPriorityHeatmapChart: ChartModule = {
         orient: 'horizontal',
         left: 'center',
         bottom: '0%',
-        inRange: { color: ['#ffffff', '#FF9A76'] },
       },
       series: [
         {
@@ -78,7 +75,6 @@ export const bugOpenPriorityHeatmapChart: ChartModule = {
             show: true,
             formatter: (params: { data: number[] }) =>
               params.data[2] > 0 ? String(params.data[2]) : '',
-            color: '#111827',
           },
           emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } },
         },

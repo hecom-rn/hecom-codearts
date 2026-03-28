@@ -17,11 +17,10 @@ export const bugByAssigneeChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '3%', right: '6%', bottom: '3%', containLabel: true },
+      // grid: { left: '3%', right: '6%', bottom: '3%', containLabel: true },
       xAxis: {
         type: 'value',
         axisLine: { show: false },
-        splitLine: { lineStyle: { color: '#f0f3f7' } },
       },
       yAxis: {
         type: 'category',
@@ -34,8 +33,8 @@ export const bugByAssigneeChart: ChartModule = {
         {
           type: 'bar',
           data: values,
-          label: { show: true, position: 'right', color: '#111827', fontWeight: 600 },
-          itemStyle: { color: '#4A6CF7', borderRadius: 6 },
+          label: { show: true, position: 'right', fontWeight: 600 },
+          itemStyle: { borderRadius: 6 },
           barCategoryGap: '40%',
         },
       ],

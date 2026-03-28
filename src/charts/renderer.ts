@@ -4,6 +4,7 @@ import * as path from 'path';
 import { IssueItem } from '../types';
 import { logger } from '../utils/logger';
 import { ChartModule } from './chart.interface';
+import macarons from './macarons';
 
 export interface ReportMeta {
   iterationNames: string[];
@@ -68,6 +69,8 @@ export function renderReport(
 }
 
 function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): string {
+  // 使用打包友好的方式：直接从 macarons.ts 导出对象（避免构建后 JSON 丢失）
+  const macaronsForHtml = JSON.stringify(macarons || {});
   const chartContainers = charts
     .map(
       (chart, i) =>
@@ -85,18 +88,25 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
         return `(() => {
         const el = document.getElementById('chart-${i}');
         if (!el) return;
-        const myChart = echarts.init(el);
-        const defaultTheme = {
-          color: ['#4A6CF7', '#6AD3FF', '#6BCB9B', '#FFD66B', '#FF9A76', '#7E63FF', '#FFA2EC'],
-          textStyle: { color: '#2b2b2b', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
-          tooltip: { backgroundColor: 'rgba(0,0,0,0.75)', textStyle: { color: '#fff' } },
-          legend: { textStyle: { color: '#666' } },
-          axis: { axisLine: { lineStyle: { color: '#e9edf1' } }, axisLabel: { color: '#9aa0a6' }, splitLine: { lineStyle: { color: '#f0f3f7' } } }
-        };
-        // merge defaults shallowly; chart option will override defaults where provided
-        const userOption = ${option};
-        const merged = Object.assign({}, defaultTheme, userOption);
-        myChart.setOption(merged, true);
+        let myChart;
+        try {
+          // 优先使用已注册的 macarons 主题进行初始化
+          myChart = echarts.init(el, 'macarons');
+          myChart.setOption(${option}, true);
+        } catch (e) {
+          // 回退：若主题不可用或初始化失败，使用原先的默认样式并继续渲染
+          const defaultTheme = {
+            color: ['#4A6CF7', '#6AD3FF', '#6BCB9B', '#FFD66B', '#FF9A76', '#7E63FF', '#FFA2EC'],
+            textStyle: { color: '#2b2b2b', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+            tooltip: { backgroundColor: 'rgba(0,0,0,0.75)', textStyle: { color: '#fff' } },
+            legend: { textStyle: { color: '#666' } },
+            axis: { axisLine: { lineStyle: { color: '#e9edf1' } }, axisLabel: { color: '#9aa0a6' }, splitLine: { lineStyle: { color: '#f0f3f7' } } }
+          };
+          myChart = echarts.init(el);
+          const userOption = ${option};
+          const merged = Object.assign({}, defaultTheme, userOption);
+          myChart.setOption(merged, true);
+        }
         // store instance for global resize handling
         window.__HECOM_CHARTS = window.__HECOM_CHARTS || [];
         window.__HECOM_CHARTS.push(myChart);
@@ -180,6 +190,17 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
   </div>
   <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
   <script>
+    // 注册 macarons 主题（若可用）
+    (function(){
+      try {
+        const theme = ${macaronsForHtml};
+        if (typeof echarts !== 'undefined' && theme && Object.keys(theme).length) {
+          echarts.registerTheme('macarons', theme);
+        }
+      } catch (e) {
+        // 主题注册失败则忽略，chart 初始化中有回退处理
+      }
+    })();
     ${chartScripts}
   </script>
 </body>

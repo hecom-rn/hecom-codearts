@@ -18,12 +18,11 @@ export const bugByDeveloperHoursChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '3%', right: '6%', bottom: '3%', containLabel: true },
+      // grid: { left: '3%', right: '6%', bottom: '3%', containLabel: true },
       xAxis: {
         type: 'value',
         name: '小时',
         axisLine: { show: false },
-        splitLine: { lineStyle: { color: '#f0f3f7' } },
       },
       yAxis: {
         type: 'category',
@@ -40,10 +39,9 @@ export const bugByDeveloperHoursChart: ChartModule = {
             show: true,
             position: 'right',
             formatter: '{c}h',
-            color: '#111827',
             fontWeight: 600,
           },
-          itemStyle: { color: '#6AD3FF', borderRadius: 6 },
+          itemStyle: { borderRadius: 6 },
           barCategoryGap: '40%',
         },
       ],

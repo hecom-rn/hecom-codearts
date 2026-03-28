@@ -17,20 +17,20 @@ export const bugByModuleChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '4%', right: '4%', bottom: '18%', containLabel: true },
+      // grid: { left: '4%', right: '4%', bottom: '18%', containLabel: true },
       xAxis: {
         type: 'category',
         data: names,
-        axisLabel: { rotate: 30, overflow: 'truncate', width: 90, color: '#666' },
+        axisLabel: { rotate: 30, overflow: 'truncate', width: 90 },
         axisLine: { show: false },
       },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f0f3f7' } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: {} } },
       series: [
         {
           type: 'bar',
           data: values,
-          label: { show: true, position: 'top', color: '#111827' },
-          itemStyle: { color: '#6BCB9B', borderRadius: 6 },
+          label: { show: true, position: 'top' },
+          itemStyle: { borderRadius: 6 },
           barWidth: '48%',
         },
       ],
