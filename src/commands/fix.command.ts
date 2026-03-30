@@ -1,8 +1,8 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import ora from 'ora';
 import { BusinessService } from '../services/business.service';
-import { BugFixData, CustomFieldId, IssueItem } from '../types';
-import { CliOptions, loadConfig } from '../utils/config-loader';
+import { BugFixData, ConfigKey, CustomFieldId, IssueItem } from '../types';
+import { CliOptions, getConfig, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
 import { logger } from '../utils/logger';
 
@@ -56,8 +56,16 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
     // Step 5: 检查是否为客户反馈 bug
     const isCustomerFeedback = checkIsCustomerFeedback(selectedBug);
 
-    // Step 6: 填写缺陷分析信息
-    const bugFixData: BugFixData = {};
+    // Step 6: 读取配置的开发端和终端类型
+    const globalConfig = getConfig();
+    const developmentEnd = globalConfig[ConfigKey.DEVELOPMENT_END];
+    const terminalType = globalConfig[ConfigKey.TERMINAL_TYPE];
+
+    // Step 7: 填写缺陷分析信息
+    const bugFixData: BugFixData = {
+      developmentEnd,
+      terminalType,
+    };
 
     // 6.1: 选择缺陷技术分析（必填）
     const defectAnalysisOptions = customFieldOptions[CustomFieldId.DEFECT_TECHNICAL_ANALYSIS] || [];
@@ -149,7 +157,7 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
     }
 
     // Step 7: 确认并提交
-    const confirmed = await showSummaryAndConfirm(selectedBug, bugFixData, isCustomerFeedback);
+    const confirmed = await showSummaryAndConfirm(selectedBug, bugFixData);
 
     if (!confirmed) {
       logger.info('操作已取消');
@@ -231,24 +239,29 @@ function checkIsCustomerFeedback(bug: IssueItem): boolean {
  * 显示总结信息并确认提交
  * @param bug 选中的 bug
  * @param bugFixData 填写的缺陷信息
- * @param isCustomerFeedback 是否为客户反馈
  * @returns 用户是否确认提交
  */
-async function showSummaryAndConfirm(
-  bug: IssueItem,
-  bugFixData: BugFixData,
-  isCustomerFeedback: boolean
-): Promise<boolean> {
+async function showSummaryAndConfirm(bug: IssueItem, bugFixData: BugFixData): Promise<boolean> {
   logger.info('\n========== 填写信息总结 ==========\n');
-  logger.info(`Bug ID: #${bug.id}`);
   logger.info(`Bug 标题: ${bug.name}`);
-  logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis || '未填写'}`);
-  logger.info(`问题原因及解决办法: ${bugFixData.problemReason || '未填写'}`);
-  logger.info(`影响范围: ${bugFixData.impactScope || '未填写'}`);
+  if (bugFixData.defectAnalysis) {
+    logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis}`);
+  }
+  if (bugFixData.problemReason) {
+    logger.info(`问题原因及解决办法: ${bugFixData.problemReason}`);
+  }
+  if (bugFixData.impactScope) {
+    logger.info(`影响范围: ${bugFixData.impactScope}`);
+  }
+  if (bugFixData.introductionStage) {
+    logger.info(`引入阶段: ${bugFixData.introductionStage}`);
+  }
+  if (bugFixData.releaseDate) {
+    logger.info(`发布时间: ${bugFixData.releaseDate}`);
+  }
 
-  if (isCustomerFeedback) {
-    logger.info(`引入阶段: ${bugFixData.introductionStage || '未填写'}`);
-    logger.info(`发布时间: ${bugFixData.releaseDate || '未填写'}`);
+  if (!bugFixData.terminalType) {
+    logger.warn('\n💡 提示：未配置终端类型，建议运行 codearts config terminal-type 进行配置');
   }
 
   logger.info('\n==================================\n');

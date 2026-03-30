@@ -780,8 +780,15 @@ export class BusinessService {
    * @param bugFixData 缺陷分析数据
    */
   async fixBug(projectId: string, issue: IssueItem, bugFixData: BugFixData): Promise<void> {
-    const { defectAnalysis, problemReason, impactScope, introductionStage, releaseDate } =
-      bugFixData;
+    const {
+      defectAnalysis,
+      problemReason,
+      impactScope,
+      introductionStage,
+      releaseDate,
+      developmentEnd,
+      terminalType,
+    } = bugFixData;
 
     // 验证工作项是否为缺陷
     if (issue.tracker?.id !== IssueTrackerId.BUG) {
@@ -854,6 +861,24 @@ export class BusinessService {
           });
         }
       }
+    }
+
+    // 添加开发端字段
+    if (developmentEnd) {
+      newCustomFields.push({
+        custom_field: CustomFieldId.DEVELOPMENT_END,
+        field_name: '开发端',
+        value: developmentEnd,
+      });
+    }
+
+    // 添加终端类型字段
+    if (terminalType) {
+      newCustomFields.push({
+        custom_field: CustomFieldId.TERMINAL_TYPE,
+        field_name: '终端类型',
+        value: terminalType,
+      });
     }
 
     // 只有在有自定义字段时才发送更新请求

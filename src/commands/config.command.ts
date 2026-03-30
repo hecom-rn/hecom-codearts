@@ -3,7 +3,7 @@ import ora from 'ora';
 import pc from 'picocolors';
 import * as readline from 'readline';
 import { BusinessService } from '../services/business.service';
-import { ConfigKey, ConfigMap, Project } from '../types';
+import { ConfigKey, ConfigMap, CustomFieldId, Project } from '../types';
 import {
   configExists,
   getConfig,
@@ -97,8 +97,91 @@ async function configureRoleIds(
 }
 
 /**
+ * 配置开发端
+ */
+async function configureDevelopmentEnd(
+  businessService: BusinessService,
+  projectId: string,
+  existingValue?: string
+): Promise<string> {
+  const customFieldId = CustomFieldId.DEVELOPMENT_END;
+  const spinner = ora('正在获取开发端选项...').start();
+
+  let options: string[];
+  try {
+    const optionsMap = await businessService.getCustomFieldOptions(projectId, [customFieldId]);
+    options = optionsMap[customFieldId] || [];
+    spinner.stop();
+  } catch (error) {
+    spinner.fail('获取开发端选项失败');
+    logger.error(`${String(error)}`);
+    return existingValue || '';
+  }
+
+  if (options.length === 0) {
+    logger.warn('未获取到开发端选项');
+    return existingValue || '';
+  }
+
+  const choices = options.map((option) => ({
+    name: option,
+    value: option,
+    checked: existingValue === option,
+  }));
+
+  const selected = await select({
+    message: '请选择开发端：',
+    choices,
+    theme: globalTheme,
+  });
+
+  return selected;
+}
+
+/**
+ * 配置终端类型
+ */
+async function configureTerminalType(
+  businessService: BusinessService,
+  projectId: string,
+  existingValue?: string
+): Promise<string> {
+  const customFieldId = CustomFieldId.TERMINAL_TYPE;
+  const spinner = ora('正在获取终端类型选项...').start();
+
+  let options: string[];
+  try {
+    const optionsMap = await businessService.getCustomFieldOptions(projectId, [customFieldId]);
+    options = optionsMap[customFieldId] || [];
+    spinner.stop();
+  } catch (error) {
+    spinner.fail('获取终端类型选项失败');
+    logger.error(`${String(error)}`);
+    return existingValue || '';
+  }
+
+  if (options.length === 0) {
+    logger.warn('未获取到终端类型选项');
+    return existingValue || '';
+  }
+
+  const choices = options.map((option) => ({
+    name: option,
+    value: option,
+    checked: existingValue === option,
+  }));
+
+  const selected = await select({
+    message: '请选择终端类型：',
+    choices,
+    theme: globalTheme,
+  });
+
+  return selected;
+}
+
+/**
  * 第三阶段项目配置项列表
- * 未来可以在这里添加更多配置项
  */
 const PROJECT_CONFIG_ITEMS: ProjectConfigItem[] = [
   {
@@ -106,12 +189,16 @@ const PROJECT_CONFIG_ITEMS: ProjectConfigItem[] = [
     label: '角色配置',
     configure: configureRoleIds,
   },
-  // 未来可以在这里添加更多配置项，例如：
-  // {
-  //   key: ConfigKey.CUSTOM_FIELD,
-  //   label: '自定义字段配置',
-  //   configure: configureCustomField,
-  // },
+  {
+    key: ConfigKey.DEVELOPMENT_END,
+    label: '开发端配置',
+    configure: configureDevelopmentEnd,
+  },
+  {
+    key: ConfigKey.TERMINAL_TYPE,
+    label: '终端类型配置',
+    configure: configureTerminalType,
+  },
 ];
 async function inputPassword(): Promise<string> {
   return await password({
@@ -420,6 +507,8 @@ export async function showConfigCommand(): Promise<void> {
     ConfigKey.CODEARTS_BASE_URL,
     ConfigKey.PROJECT_ID,
     ConfigKey.ROLE_ID,
+    ConfigKey.DEVELOPMENT_END,
+    ConfigKey.TERMINAL_TYPE,
   ];
   for (const key of codeartsKeys) {
     const value = config[key] || '(未配置)';
@@ -440,6 +529,8 @@ function formatKeyName(key: ConfigKey): string {
     [ConfigKey.CODEARTS_BASE_URL]: 'CodeArts API 地址',
     [ConfigKey.PROJECT_ID]: '项目 ID',
     [ConfigKey.ROLE_ID]: '角色 ID',
+    [ConfigKey.DEVELOPMENT_END]: '开发端',
+    [ConfigKey.TERMINAL_TYPE]: '终端类型',
   };
   return nameMap[key] || key;
 }

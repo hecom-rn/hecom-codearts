@@ -718,6 +718,8 @@ export enum ConfigKey {
 
   // 可变配置（可以通过命令行参数覆盖）
   ROLE_ID = 'ROLE_ID',
+  DEVELOPMENT_END = 'DEVELOPMENT_END',
+  TERMINAL_TYPE = 'TERMINAL_TYPE',
 }
 
 /**
@@ -732,6 +734,8 @@ export type ConfigMap = {
   [ConfigKey.CODEARTS_BASE_URL]: string;
   [ConfigKey.PROJECT_ID]: string;
   [ConfigKey.ROLE_ID]: string;
+  [ConfigKey.DEVELOPMENT_END]: string;
+  [ConfigKey.TERMINAL_TYPE]: string;
 };
 
 /**
@@ -794,4 +798,6 @@ export interface BugFixData {
   impactScope?: string; // 影响范围
   introductionStage?: string; // 引入阶段（客户反馈类缺陷）
   releaseDate?: string; // 发布日期（客户反馈类缺陷）
+  developmentEnd?: string; // 开发端
+  terminalType?: string; // 终端类型
 }
