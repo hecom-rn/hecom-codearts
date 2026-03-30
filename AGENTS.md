@@ -266,6 +266,10 @@ constructor(config: HuaweiCloudConfig) {
 }
 ```
 
+### 5.4 内部类型约定
+
+- 自定义字段优先使用枚举`CustomFieldId`，不要使用字符串 'custom_filedxx'
+
 ---
 
 ## 6. 错误处理规范
