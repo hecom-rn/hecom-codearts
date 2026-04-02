@@ -90,7 +90,7 @@ export interface IssueDetail extends IssueItem {
 /**
  * 并发批量获取工作项详情（含 tag_list）
  * @param projectId 项目ID
- * @param issueIds 工作项ID列表
+ * @param issueIds 工作项ID列表（number[]，调用 getIssueById 时转为 string）
  * @param concurrency 并发数，默认 10
  */
 async getIssueDetails(
@@ -100,7 +100,7 @@ async getIssueDetails(
 ): Promise<IssueDetail[]>
 ```
 
-实现：将 `issueIds` 按 `concurrency` 分批，每批 `Promise.all` 并发调用 `getIssueById`。
+实现：将 `issueIds` 按 `concurrency` 分批，每批 `Promise.all` 并发调用 `getIssueById(projectId, String(id))`。
 
 ### `rebug.command.ts` 结构
 
