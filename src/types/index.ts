@@ -372,6 +372,10 @@ export interface IssueItem {
   deleted: boolean; // 是否已经删除
 }
 
+export interface IssueDetail extends IssueItem {
+  tag_list: string[] | null;
+}
+
 export interface ListIssuesV4Response {
   issues: IssueItem[]; // 工作项列表
   total: number; // 总数
