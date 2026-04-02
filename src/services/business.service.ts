@@ -4,6 +4,7 @@ import {
   CustomField,
   CustomFieldId,
   HuaweiCloudConfig,
+  IssueDetail,
   IssueItem,
   IssueItemV2,
   IssueNewCustomField,
@@ -22,6 +23,7 @@ import {
   WorkProgressStats,
 } from '../types';
 import { ApiService } from './api.service';
+import { logger } from '../utils/logger';
 
 /**
  * 业务服务类
@@ -898,6 +900,38 @@ export class BusinessService {
 
       await this.apiService.updateIssue(projectId, String(issue.id), updateData);
     }
+  }
+
+  /**
+   * 并发批量获取工作项详情（含 tag_list）
+   * @param projectId 项目ID
+   * @param issueIds 工作项ID列表（调用 getIssueById 时转为 string）
+   * @param concurrency 并发数，默认 10
+   */
+  async getIssueDetails(
+    projectId: string,
+    issueIds: number[],
+    concurrency: number = 10
+  ): Promise<IssueDetail[]> {
+    const results: IssueDetail[] = [];
+
+    for (let i = 0; i < issueIds.length; i += concurrency) {
+      const batch = issueIds.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map(async (id) => {
+          try {
+            const response = await this.apiService.getIssueById(projectId, String(id));
+            return response.success && response.data ? response.data : null;
+          } catch (error) {
+            logger.warn(`获取工作项 ${id} 详情失败: ${String(error)}`);
+            return null;
+          }
+        })
+      );
+      results.push(...(batchResults.filter((r) => r !== null) as IssueDetail[]));
+    }
+
+    return results;
   }
 
   /**
