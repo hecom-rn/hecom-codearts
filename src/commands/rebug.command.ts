@@ -157,7 +157,7 @@ export async function rebugNoTagCommand(cliOptions: CliOptions = {}): Promise<vo
 
     const developer = cliOptions.developer;
     if (developer && developer.trim() !== '') {
-      untagged = untagged.filter((detail) => detail.assigned_user?.nick_name?.includes(developer));
+      untagged = untagged.filter((detail) => detail.developer?.nick_name?.includes(developer));
     }
 
     if (untagged.length === 0) {
