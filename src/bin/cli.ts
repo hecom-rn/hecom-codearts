@@ -11,7 +11,7 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
-import { rebugCommand } from '../commands/rebug.command';
+import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
@@ -103,18 +103,32 @@ program
     await fixCommand(cliOptions);
   });
 
-// rebug 命令
-program
-  .command('rebug')
-  .description('Bug 列表交互式查询与多维度可视化分析')
+// rebug 命令组
+const rebugCmd = program.command('rebug').description('Bug 列表交互式查询与分析');
+
+// rebug chart 子命令
+rebugCmd
+  .command('chart')
+  .description('多维度 ECharts 可视化分析报告')
   .option(
     '--output-dir <path>',
     '输出 HTML 报告的目录（默认输出到系统 cache 目录，指定此参数则输出到当前目录）'
   )
   .action(async (options, command) => {
-    const cliOptions = { ...command.parent.opts(), outputDir: options.outputDir };
+    const cliOptions = { ...command.parent.parent.opts(), outputDir: options.outputDir };
     logger.setOutputFormat(cliOptions.output);
-    await rebugCommand(cliOptions);
+    await rebugChartCommand(cliOptions);
+  });
+
+// rebug no-tag 子命令
+rebugCmd
+  .command('no-tag')
+  .description('展示未添加标签的 Bug 列表')
+  .option('--developer <name>', '按处理人昵称过滤（包含匹配）')
+  .action(async (options, command) => {
+    const cliOptions = { ...command.parent.parent.opts(), developer: options.developer };
+    logger.setOutputFormat(cliOptions.output);
+    await rebugNoTagCommand(cliOptions);
   });
 
 // 检查配置并自动执行 config 命令
