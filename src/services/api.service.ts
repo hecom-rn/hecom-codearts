@@ -9,6 +9,7 @@ import {
   HuaweiCloudConfig,
   IamTokenRequest,
   IamTokenResponse,
+  IssueDetail,
   ListChildIssuesV2Response,
   ListChildIssuesV4Response,
   ListIssuesV4Request,
@@ -383,7 +384,7 @@ export class ApiService {
   /**
    * 获取指定工作项的详细信息
    */
-  async getIssueById(projectId: string, issueId: string): Promise<ApiResponse<unknown>> {
+  async getIssueById(projectId: string, issueId: string): Promise<ApiResponse<IssueDetail>> {
     return this.request(`/v4/projects/${projectId}/issues/${issueId}`, {
       method: 'GET',
     });
