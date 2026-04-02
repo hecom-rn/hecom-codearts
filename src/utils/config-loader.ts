@@ -154,6 +154,7 @@ export interface CliOptions {
   output?: string;
   report?: boolean;
   outputDir?: string;
+  developer?: string; // 按处理人昵称过滤（rebug no-tag 命令）
 }
 
 export interface LoadedConfig {
