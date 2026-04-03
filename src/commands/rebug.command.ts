@@ -94,27 +94,8 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
     throw new Error('未获取到任何迭代信息');
   }
 
-  let selectedIterations: IterationInfo[];
-  const hasIterationParam = cliOptions.iteration && cliOptions.iteration.trim().length > 0;
-  if (hasIterationParam) {
-    const matched = matchIterations(iterations, cliOptions.iteration!);
-    if (matched.length > 0) {
-      selectedIterations = matched;
-    } else {
-      logger.warn(`迭代关键字 "${cliOptions.iteration}" 未匹配到任何结果，请手动选择`);
-      selectedIterations = await checkbox({
-        message: '请选择要查询的迭代：',
-        choices: iterations.map((it) => ({
-          name: `${it.name} (${it.begin_time} ~ ${it.end_time})`,
-          value: it,
-          checked: false,
-        })),
-        validate: (answer) => (answer.length === 0 ? '至少需要选择一个迭代' : true),
-        theme: globalTheme,
-      });
-    }
-  } else {
-    selectedIterations = await checkbox({
+  const promptIterations = () =>
+    checkbox({
       message: '请选择要查询的迭代：',
       choices: iterations.map((it) => ({
         name: `${it.name} (${it.begin_time} ~ ${it.end_time})`,
@@ -124,6 +105,19 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
       validate: (answer) => (answer.length === 0 ? '至少需要选择一个迭代' : true),
       theme: globalTheme,
     });
+
+  let selectedIterations: IterationInfo[];
+  const hasIterationParam = !!cliOptions.iteration?.trim();
+  if (hasIterationParam) {
+    const matched = matchIterations(iterations, cliOptions.iteration!);
+    if (matched.length > 0) {
+      selectedIterations = matched;
+    } else {
+      logger.warn(`迭代关键字 "${cliOptions.iteration}" 未匹配到任何结果，请手动选择`);
+      selectedIterations = await promptIterations();
+    }
+  } else {
+    selectedIterations = await promptIterations();
   }
 
   let terminalTypeOptions: string[] = [];
@@ -136,27 +130,26 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
     logger.warn('获取终端类型选项失败，将跳过终端类型筛选');
   }
 
+  const promptTerminalTypes = () =>
+    checkbox({
+      message: '请选择终端类型（不选则查询全部）：',
+      choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
+      theme: globalTheme,
+    });
+
   let selectedTerminalTypes: string[] = [];
   if (terminalTypeOptions.length > 0) {
-    const hasTerminalParam = cliOptions.terminal && cliOptions.terminal.trim().length > 0;
+    const hasTerminalParam = !!cliOptions.terminal?.trim();
     if (hasTerminalParam) {
       const matched = matchTerminalTypes(terminalTypeOptions, cliOptions.terminal!);
       if (matched.length > 0) {
         selectedTerminalTypes = matched;
       } else {
         logger.warn(`终端类型关键字 "${cliOptions.terminal}" 未匹配到任何结果，请手动选择`);
-        selectedTerminalTypes = await checkbox({
-          message: '请选择终端类型（不选则查询全部）：',
-          choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
-          theme: globalTheme,
-        });
+        selectedTerminalTypes = await promptTerminalTypes();
       }
     } else {
-      selectedTerminalTypes = await checkbox({
-        message: '请选择终端类型（不选则查询全部）：',
-        choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
-        theme: globalTheme,
-      });
+      selectedTerminalTypes = await promptTerminalTypes();
     }
   }
 
