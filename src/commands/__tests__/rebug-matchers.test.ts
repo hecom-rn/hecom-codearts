@@ -52,7 +52,9 @@ describe('matchIterations', () => {
   });
 
   it('正则元字符作为字面量匹配', () => {
-    expect(matchIterations(iterations, '2025.01').length).toBeGreaterThan(0);
+    // '.' 应作为字面量点号，而非正则通配符
+    expect(matchIterations(iterations, '2025.01').map((i) => i.id)).toEqual([1, 4]);
+    expect(matchIterations(iterations, '202501')).toEqual([]);
   });
 });
 
