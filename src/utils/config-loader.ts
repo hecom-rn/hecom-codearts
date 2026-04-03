@@ -155,6 +155,8 @@ export interface CliOptions {
   report?: boolean;
   outputDir?: string;
   developer?: string; // 按处理人昵称过滤（rebug no-tag 命令）
+  iteration?: string; // 迭代关键字（逗号分隔，模糊匹配迭代名称）
+  terminal?: string; // 终端类型关键字（逗号分隔，模糊匹配选项）
 }
 
 export interface LoadedConfig {
