@@ -9,6 +9,62 @@ import { CliOptions, loadConfig } from '../utils/config-loader';
 import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 
+/**
+ * 从迭代列表中按关键字模糊匹配
+ * @param iterations 迭代列表
+ * @param keywords 逗号分隔的关键字，不区分大小写
+ * @returns 命中的迭代列表（保持原列表顺序）
+ */
+export function matchIterations(iterations: IterationInfo[], keywords: string): IterationInfo[] {
+  const keywordList = keywords
+    .split(',')
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  if (keywordList.length === 0) return [];
+  const matched = new Set<number>();
+  const result: IterationInfo[] = [];
+  for (const iteration of iterations) {
+    for (const keyword of keywordList) {
+      if (iteration.name.toLowerCase().includes(keyword.toLowerCase())) {
+        if (!matched.has(iteration.id)) {
+          matched.add(iteration.id);
+          result.push(iteration);
+        }
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 从终端类型选项列表中按关键字模糊匹配
+ * @param availableTerminalTypes 可选的终端类型列表
+ * @param keywords 逗号分隔的关键字，不区分大小写
+ * @returns 命中的终端类型列表（保持原列表顺序）
+ */
+export function matchTerminalTypes(availableTerminalTypes: string[], keywords: string): string[] {
+  const keywordList = keywords
+    .split(',')
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  if (keywordList.length === 0) return [];
+  const matched = new Set<string>();
+  const result: string[] = [];
+  for (const type of availableTerminalTypes) {
+    for (const keyword of keywordList) {
+      if (type.toLowerCase().includes(keyword.toLowerCase())) {
+        if (!matched.has(type)) {
+          matched.add(type);
+          result.push(type);
+        }
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 interface SelectedBugsResult {
   selectedIterations: IterationInfo[];
   selectedTerminalTypes: string[];
