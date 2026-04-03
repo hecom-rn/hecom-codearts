@@ -110,12 +110,19 @@ const rebugCmd = program.command('rebug').description('Bug 列表交互式查询
 rebugCmd
   .command('chart')
   .description('多维度 ECharts 可视化分析报告')
+  .option('-i, --iteration <keywords>', '迭代关键字（逗号分隔，模糊匹配迭代名称）')
+  .option('-t, --terminal <keywords>', '终端类型关键字（逗号分隔，模糊匹配选项）')
   .option(
     '--output-dir <path>',
     '输出 HTML 报告的目录（默认输出到系统 cache 目录，指定此参数则输出到当前目录）'
   )
   .action(async (options, command) => {
-    const cliOptions = { ...command.parent.parent.opts(), outputDir: options.outputDir };
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      iteration: options.iteration,
+      terminal: options.terminal,
+      outputDir: options.outputDir,
+    };
     logger.setOutputFormat(cliOptions.output);
     await rebugChartCommand(cliOptions);
   });
@@ -124,9 +131,16 @@ rebugCmd
 rebugCmd
   .command('no-tag')
   .description('展示未添加标签的 Bug 列表')
+  .option('-i, --iteration <keywords>', '迭代关键字（逗号分隔，模糊匹配迭代名称）')
+  .option('-t, --terminal <keywords>', '终端类型关键字（逗号分隔，模糊匹配选项）')
   .option('--developer <name>', '按处理人昵称过滤（包含匹配）')
   .action(async (options, command) => {
-    const cliOptions = { ...command.parent.parent.opts(), developer: options.developer };
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      iteration: options.iteration,
+      terminal: options.terminal,
+      developer: options.developer,
+    };
     logger.setOutputFormat(cliOptions.output);
     await rebugNoTagCommand(cliOptions);
   });
