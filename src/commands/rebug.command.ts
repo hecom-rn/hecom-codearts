@@ -94,16 +94,37 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
     throw new Error('未获取到任何迭代信息');
   }
 
-  const selectedIterations = await checkbox({
-    message: '请选择要查询的迭代：',
-    choices: iterations.map((it) => ({
-      name: `${it.name} (${it.begin_time} ~ ${it.end_time})`,
-      value: it,
-      checked: false,
-    })),
-    validate: (answer) => (answer.length === 0 ? '至少需要选择一个迭代' : true),
-    theme: globalTheme,
-  });
+  let selectedIterations: IterationInfo[];
+  const hasIterationParam = cliOptions.iteration && cliOptions.iteration.trim().length > 0;
+  if (hasIterationParam) {
+    const matched = matchIterations(iterations, cliOptions.iteration!);
+    if (matched.length > 0) {
+      selectedIterations = matched;
+    } else {
+      logger.warn(`迭代关键字 "${cliOptions.iteration}" 未匹配到任何结果，请手动选择`);
+      selectedIterations = await checkbox({
+        message: '请选择要查询的迭代：',
+        choices: iterations.map((it) => ({
+          name: `${it.name} (${it.begin_time} ~ ${it.end_time})`,
+          value: it,
+          checked: false,
+        })),
+        validate: (answer) => (answer.length === 0 ? '至少需要选择一个迭代' : true),
+        theme: globalTheme,
+      });
+    }
+  } else {
+    selectedIterations = await checkbox({
+      message: '请选择要查询的迭代：',
+      choices: iterations.map((it) => ({
+        name: `${it.name} (${it.begin_time} ~ ${it.end_time})`,
+        value: it,
+        checked: false,
+      })),
+      validate: (answer) => (answer.length === 0 ? '至少需要选择一个迭代' : true),
+      theme: globalTheme,
+    });
+  }
 
   let terminalTypeOptions: string[] = [];
   try {
@@ -117,11 +138,26 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
 
   let selectedTerminalTypes: string[] = [];
   if (terminalTypeOptions.length > 0) {
-    selectedTerminalTypes = await checkbox({
-      message: '请选择终端类型（不选则查询全部）：',
-      choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
-      theme: globalTheme,
-    });
+    const hasTerminalParam = cliOptions.terminal && cliOptions.terminal.trim().length > 0;
+    if (hasTerminalParam) {
+      const matched = matchTerminalTypes(terminalTypeOptions, cliOptions.terminal!);
+      if (matched.length > 0) {
+        selectedTerminalTypes = matched;
+      } else {
+        logger.warn(`终端类型关键字 "${cliOptions.terminal}" 未匹配到任何结果，请手动选择`);
+        selectedTerminalTypes = await checkbox({
+          message: '请选择终端类型（不选则查询全部）：',
+          choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
+          theme: globalTheme,
+        });
+      }
+    } else {
+      selectedTerminalTypes = await checkbox({
+        message: '请选择终端类型（不选则查询全部）：',
+        choices: terminalTypeOptions.map((t) => ({ name: t, value: t, checked: false })),
+        theme: globalTheme,
+      });
+    }
   }
 
   const querySpinner = ora('正在查询 Bug 列表...').start();
