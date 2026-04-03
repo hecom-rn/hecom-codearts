@@ -18,7 +18,7 @@ export const bugByDefectAnalysisChart: ChartModule = {
 
     return {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { orient: 'vertical', left: 'left', type: 'scroll' },
+      // legend: { orient: 'vertical', left: 'left', type: 'scroll' },
       series: [
         {
           type: 'pie',
