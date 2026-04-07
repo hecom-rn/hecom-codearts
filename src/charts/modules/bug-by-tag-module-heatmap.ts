@@ -13,8 +13,8 @@ export const bugByTagModuleHeatmapChart: ChartModule = {
       const moduleName = bug.module?.name?.trim() || '未设置模块';
       allModules.add(moduleName);
       bug.tag_list.forEach((tag) => {
-        allTags.add(tag);
-        const key = `${tag}|${moduleName}`;
+        allTags.add(tag.name);
+        const key = `${tag.name}|${moduleName}`;
         heatMap.set(key, (heatMap.get(key) || 0) + 1);
       });
     });

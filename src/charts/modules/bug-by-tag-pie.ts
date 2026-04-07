@@ -11,7 +11,7 @@ export const bugByTagPieChart: ChartModule = {
         countMap.set('未打标签', (countMap.get('未打标签') || 0) + 1);
       } else {
         bug.tag_list.forEach((tag) => {
-          countMap.set(tag, (countMap.get(tag) || 0) + 1);
+          countMap.set(tag.name, (countMap.get(tag.name) || 0) + 1);
         });
       }
     });

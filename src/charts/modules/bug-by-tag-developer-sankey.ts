@@ -10,7 +10,7 @@ export const bugByTagDeveloperSankeyChart: ChartModule = {
       if (!bug.tag_list || bug.tag_list.length === 0) return;
       const developer = bug.developer?.nick_name?.trim() || '未指派';
       bug.tag_list.forEach((tag) => {
-        const key = `${developer}|||${tag}`;
+        const key = `${developer}|||${tag.name}`;
         edgeMap.set(key, (edgeMap.get(key) || 0) + 1);
       });
     });

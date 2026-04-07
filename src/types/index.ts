@@ -372,8 +372,13 @@ export interface IssueItem {
   deleted: boolean; // 是否已经删除
 }
 
+export interface IssueTag {
+  id: string;
+  name: string;
+}
+
 export interface IssueDetail extends IssueItem {
-  tag_list: string[] | null;
+  tag_list: IssueTag[] | null;
 }
 
 export interface ListIssuesV4Response {

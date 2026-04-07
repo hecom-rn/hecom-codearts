@@ -9,7 +9,7 @@ export const bugByTagWordcloudChart: ChartModule = {
     bugs.forEach((bug) => {
       if (!bug.tag_list || bug.tag_list.length === 0) return;
       bug.tag_list.forEach((tag) => {
-        countMap.set(tag, (countMap.get(tag) || 0) + 1);
+        countMap.set(tag.name, (countMap.get(tag.name) || 0) + 1);
       });
     });
 

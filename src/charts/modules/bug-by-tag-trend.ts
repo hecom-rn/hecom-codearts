@@ -26,8 +26,8 @@ export const bugByTagTrendChart: ChartModule = {
       const week = getISOWeekKey(new Date(bug.created_time));
       allWeeks.add(week);
       bug.tag_list.forEach((tag) => {
-        if (!tagWeekMap.has(tag)) tagWeekMap.set(tag, new Map());
-        const weekMap = tagWeekMap.get(tag)!;
+        if (!tagWeekMap.has(tag.name)) tagWeekMap.set(tag.name, new Map());
+        const weekMap = tagWeekMap.get(tag.name)!;
         weekMap.set(week, (weekMap.get(week) || 0) + 1);
       });
     });
