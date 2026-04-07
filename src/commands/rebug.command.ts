@@ -68,7 +68,7 @@ export function matchTerminalTypes(availableTerminalTypes: string[], keywords: s
 interface SelectedBugsResult {
   selectedIterations: IterationInfo[];
   selectedTerminalTypes: string[];
-  allBugs: IssueItem[];
+  allBugs: IssueDetail[];
   projectId: string;
   businessService: BusinessService;
 }
@@ -155,16 +155,29 @@ async function selectBugsInteractive(cliOptions: CliOptions): Promise<SelectedBu
 
   const querySpinner = ora('正在查询 Bug 列表...').start();
   const iterationIds = selectedIterations.map((it) => it.id);
-  let allBugs: IssueItem[];
+  let items: IssueItem[];
   try {
-    allBugs = await businessService.getBugsByIterationsAndTerminals(
+    items = await businessService.getBugsByIterationsAndTerminals(
       projectId,
       iterationIds,
       selectedTerminalTypes
     );
-    querySpinner.succeed(`查询完成：共找到 ${allBugs.length} 个 Bug`);
+    querySpinner.succeed(`查询完成：共找到 ${items.length} 个 Bug`);
   } catch (error) {
     querySpinner.fail('Bug 查询失败');
+    throw error;
+  }
+
+  const detailSpinner = ora(`正在获取 ${items.length} 个 Bug 的详情...`).start();
+  let allBugs: IssueDetail[];
+  try {
+    allBugs = await businessService.getIssueDetails(
+      projectId,
+      items.map((b) => b.id)
+    );
+    detailSpinner.succeed('详情获取完成');
+  } catch (error) {
+    detailSpinner.fail('获取 Bug 详情失败');
     throw error;
   }
 
@@ -225,18 +238,7 @@ export async function rebugNoTagCommand(cliOptions: CliOptions = {}): Promise<vo
       logger.info(`终端类型：${selectedTerminalTypes.join(', ')}`);
     }
 
-    const detailSpinner = ora(`正在获取 ${allBugs.length} 个 Bug 的详情...`).start();
-    const issueIds = allBugs.map((bug) => bug.id);
-    let details: IssueDetail[];
-    try {
-      details = await businessService.getIssueDetails(projectId, issueIds);
-      detailSpinner.succeed('详情获取完成');
-    } catch (error) {
-      detailSpinner.fail('获取 Bug 详情失败');
-      throw error;
-    }
-
-    let untagged = details.filter(
+    let untagged = allBugs.filter(
       (detail) => detail.tag_list === null || detail.tag_list.length === 0
     );
 

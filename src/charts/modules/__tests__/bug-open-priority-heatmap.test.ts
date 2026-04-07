@@ -1,12 +1,12 @@
 import { bugOpenPriorityHeatmapChart } from '../bug-open-priority-heatmap';
-import { IssueItem } from '../../../types';
+import { IssueDetail } from '../../../types';
 
 function makeIssue(
   assignee: string,
   severityName: string,
   statusName: string,
   deleted = false
-): Partial<IssueItem> {
+): Partial<IssueDetail> {
   return {
     assigned_user: {
       id: 1,
@@ -20,7 +20,8 @@ function makeIssue(
     status: { id: 5, name: statusName },
     deleted,
     new_custom_fields: [],
-  } as Partial<IssueItem>;
+    tag_list: null,
+  } as Partial<IssueDetail>;
 }
 
 describe('bugOpenPriorityHeatmapChart', () => {
@@ -32,7 +33,7 @@ describe('bugOpenPriorityHeatmapChart', () => {
     const bugs = [
       makeIssue('张三', '重要', '已关闭'),
       makeIssue('张三', '严重', '进行中'),
-    ] as IssueItem[];
+    ] as IssueDetail[];
     const option = bugOpenPriorityHeatmapChart.buildOption(bugs) as any;
     const seriesData: number[][] = option.series[0].data;
     const total = seriesData.reduce((sum, d) => sum + d[2], 0);
@@ -43,7 +44,7 @@ describe('bugOpenPriorityHeatmapChart', () => {
     const bugs = [
       makeIssue('张三', '重要', '进行中', true),
       makeIssue('李四', '一般', '新问题', false),
-    ] as IssueItem[];
+    ] as IssueDetail[];
     const option = bugOpenPriorityHeatmapChart.buildOption(bugs) as any;
     const seriesData: number[][] = option.series[0].data;
     const total = seriesData.reduce((sum, d) => sum + d[2], 0);
@@ -51,7 +52,7 @@ describe('bugOpenPriorityHeatmapChart', () => {
   });
 
   it('X 轴严重程度按 一般→重要→严重 顺序排列', () => {
-    const bugs = [] as IssueItem[];
+    const bugs = [] as IssueDetail[];
     const option = bugOpenPriorityHeatmapChart.buildOption(bugs) as any;
     const xData: string[] = option.xAxis.data;
     expect(xData.indexOf('一般')).toBeLessThan(xData.indexOf('重要'));
@@ -64,7 +65,7 @@ describe('bugOpenPriorityHeatmapChart', () => {
   });
 
   it('未知 severity 值放 X 轴末尾', () => {
-    const bugs = [makeIssue('张三', '未知等级', '进行中')] as IssueItem[];
+    const bugs = [makeIssue('张三', '未知等级', '进行中')] as IssueDetail[];
     const option = bugOpenPriorityHeatmapChart.buildOption(bugs) as any;
     const xData: string[] = option.xAxis.data;
     expect(xData[xData.length - 1]).toBe('未知等级');

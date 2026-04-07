@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { IssueItem } from '../types';
+import { IssueDetail } from '../types';
 import { logger } from '../utils/logger';
 import { ChartModule } from './chart.interface';
 import macarons from './macarons';
@@ -22,7 +22,7 @@ export interface ReportMeta {
  * 若文件写入失败，将 HTML 内容通过 logger 输出作为兜底，然后抛出错误。
  */
 export function renderReport(
-  bugs: IssueItem[],
+  bugs: IssueDetail[],
   charts: ChartModule[],
   meta: ReportMeta,
   outputDir?: string
@@ -68,7 +68,7 @@ export function renderReport(
   return outputPath;
 }
 
-function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): string {
+function buildHtml(bugs: IssueDetail[], charts: ChartModule[], meta: ReportMeta): string {
   // 使用打包友好的方式：直接从 macarons.ts 导出对象（避免构建后 JSON 丢失）
   const macaronsForHtml = JSON.stringify(macarons || {});
   const chartContainers = charts
@@ -189,6 +189,7 @@ function buildHtml(bugs: IssueItem[], charts: ChartModule[], meta: ReportMeta): 
   <div class="page-footer-spacer" aria-hidden="true"></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud/dist/echarts-wordcloud.min.js"></script>
   <script>
     // 注册 macarons 主题（若可用）
     (function(){

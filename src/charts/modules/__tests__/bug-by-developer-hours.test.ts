@@ -1,7 +1,7 @@
 import { bugByDeveloperHoursChart } from '../bug-by-developer-hours';
-import { IssueItem } from '../../../types';
+import { IssueDetail } from '../../../types';
 
-function makeIssue(nickName: string, hours: number): Partial<IssueItem> {
+function makeIssue(nickName: string, hours: number): Partial<IssueDetail> {
   return {
     developer: {
       id: 1,
@@ -14,7 +14,8 @@ function makeIssue(nickName: string, hours: number): Partial<IssueItem> {
     actual_work_hours: hours,
     new_custom_fields: [],
     deleted: false,
-  } as Partial<IssueItem>;
+    tag_list: null,
+  } as Partial<IssueDetail>;
 }
 
 describe('bugByDeveloperHoursChart', () => {
@@ -23,7 +24,11 @@ describe('bugByDeveloperHoursChart', () => {
   });
 
   it('按开发人员汇总工时并降序排列', () => {
-    const bugs = [makeIssue('张三', 3), makeIssue('李四', 5), makeIssue('张三', 1)] as IssueItem[];
+    const bugs = [
+      makeIssue('张三', 3),
+      makeIssue('李四', 5),
+      makeIssue('张三', 1),
+    ] as IssueDetail[];
     const option = bugByDeveloperHoursChart.buildOption(bugs) as any;
     const names: string[] = option.yAxis.data;
     const values: number[] = option.series[0].data;
@@ -34,7 +39,7 @@ describe('bugByDeveloperHoursChart', () => {
   });
 
   it('过滤掉 nick_name 为空的条目', () => {
-    const bugs = [makeIssue('', 4), makeIssue('王五', 2)] as IssueItem[];
+    const bugs = [makeIssue('', 4), makeIssue('王五', 2)] as IssueDetail[];
     const option = bugByDeveloperHoursChart.buildOption(bugs) as any;
     const names: string[] = option.yAxis.data;
     expect(names).not.toContain('');
@@ -43,9 +48,9 @@ describe('bugByDeveloperHoursChart', () => {
 
   it('过滤掉 developer 未设置的条目', () => {
     const bugs = [
-      { ...makeIssue('赵六', 3), developer: null } as unknown as IssueItem,
+      { ...makeIssue('赵六', 3), developer: null } as unknown as IssueDetail,
       makeIssue('赵六', 1),
-    ] as IssueItem[];
+    ] as IssueDetail[];
     const option = bugByDeveloperHoursChart.buildOption(bugs) as any;
     const values: number[] = option.series[0].data;
     expect(values[0]).toBe(1);

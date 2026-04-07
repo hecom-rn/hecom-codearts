@@ -1,7 +1,7 @@
 import { bugByFixDurationChart } from '../bug-by-fix-duration';
-import { IssueItem } from '../../../types';
+import { IssueDetail } from '../../../types';
 
-function makeIssue(overrides: Partial<IssueItem>): IssueItem {
+function makeIssue(overrides: Partial<IssueDetail>): IssueDetail {
   return {
     actual_work_hours: 0,
     assigned_cc_user: [],
@@ -43,8 +43,9 @@ function makeIssue(overrides: Partial<IssueItem>): IssueItem {
     tracker: { id: 3, name: 'Bug' },
     updated_time: '',
     deleted: false,
+    tag_list: null,
     ...overrides,
-  } as IssueItem;
+  } as IssueDetail;
 }
 
 describe('bugByFixDurationChart', () => {
