@@ -1,9 +1,9 @@
-import { IssueItem } from '../../types';
+import { IssueDetail } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 export const bugByModuleChart: ChartModule = {
   title: '模块 Bug 分布',
-  buildOption(bugs: IssueItem[]): object {
+  buildOption(bugs: IssueDetail[]): object {
     const countMap = new Map<string, number>();
 
     bugs.forEach((bug) => {

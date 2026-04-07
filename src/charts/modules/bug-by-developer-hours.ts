@@ -1,9 +1,9 @@
-import { IssueItem } from '../../types';
+import { IssueDetail } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 export const bugByDeveloperHoursChart: ChartModule = {
   title: '开发人员工时消耗',
-  buildOption(bugs: IssueItem[]): object {
+  buildOption(bugs: IssueDetail[]): object {
     const hoursMap = new Map<string, number>();
 
     bugs.forEach((bug) => {

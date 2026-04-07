@@ -1,11 +1,11 @@
-import { IssueItem } from '../../types';
+import { IssueDetail } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 const SEVERITY_ORDER = ['一般', '重要', '严重'];
 
 export const bugOpenPriorityHeatmapChart: ChartModule = {
   title: '未关闭 Bug 优先级分布',
-  buildOption(bugs: IssueItem[]): object {
+  buildOption(bugs: IssueDetail[]): object {
     const openBugs = bugs.filter((b) => !b.deleted && b.status?.name !== '已关闭');
 
     const unknownSeverities = [

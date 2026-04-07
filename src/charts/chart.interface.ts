@@ -1,6 +1,6 @@
-import { IssueItem } from '../types';
+import { IssueDetail } from '../types';
 
 export interface ChartModule {
   title: string;
-  buildOption(bugs: IssueItem[]): object;
+  buildOption(bugs: IssueDetail[]): object;
 }

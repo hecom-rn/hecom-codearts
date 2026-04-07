@@ -1,4 +1,4 @@
-import { IssueItem } from '../../types';
+import { IssueDetail } from '../../types';
 import { ChartModule } from '../chart.interface';
 
 const BUCKETS = ['未关闭', '≤1天', '2-3天', '4-7天', '8-14天', '>14天'] as const;
@@ -17,7 +17,7 @@ function getDurationBucket(created: string, closed: string): string {
 
 export const bugByFixDurationChart: ChartModule = {
   title: '修复周期分布',
-  buildOption(bugs: IssueItem[]): object {
+  buildOption(bugs: IssueDetail[]): object {
     const countMap = new Map<string, number>(BUCKETS.map((b) => [b, 0]));
 
     bugs.forEach((bug) => {
