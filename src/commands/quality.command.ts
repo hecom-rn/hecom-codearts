@@ -257,10 +257,13 @@ async function renderSection(
   const closedCount = bugs.filter((b) => b.closed_time).length;
   const imgRef = (name: string) => `./images/${prefix}-${name}.png`;
 
+  const devCount = devRows.filter((r) => r.name !== '未分配').length;
+  const avgBugs = devCount > 0 ? (bugs.length / devCount).toFixed(1) : '-';
+
   return [
     `## ${sectionTitle}`,
     '',
-    `**缺陷总数**：${bugs.length} 个`,
+    `**缺陷总数**：${bugs.length} 个 | **研发人数**：${devCount} 人 | **人均 Bug 数**：${avgBugs} 个`,
     '',
     `### ${headingPrefix}.1 缺陷技术分析`,
     '',
