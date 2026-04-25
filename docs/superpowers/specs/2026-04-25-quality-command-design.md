@@ -1,7 +1,7 @@
 # 质量分析命令设计文档
 
 **日期**：2026-04-25  
-**状态**：已批准（v2，修订版）  
+**状态**：已批准（v3）  
 **范围**：新增 `codearts quality` 顶级命令
 
 ---
@@ -25,44 +25,51 @@ Options:
 
 ### 行为说明
 
-- 不传 `-i` 时，调用 `businessService.getIterations(projectId, { limit: 12 })` 拉取迭代列表，通过 `inquirer checkbox` 交互式多选
-- 传入 `-i` 时，通过 `matchIterations(iterations, value)` 按名称子字符串匹配（`String.includes`，不区分大小写），跳过交互；零命中时报错退出
-- 输出目录若不存在则自动创建；已存在时直接覆盖
+**迭代选择**（与 rebug.command.ts 完全一致的逻辑）：
 
-### 迭代模糊匹配规则（复用现有 rebug.command.ts 逻辑）
+1. 调用 `businessService.getIterations(projectId, { limit: 12 })` 获取迭代列表
+2. 有 `-i` 参数时：调用 `matchIterations(iterations, value)` 做子字符串匹配（不区分大小写），命中则跳过交互；**未命中时 fallback 到交互式 checkbox（不退出）**，并输出 `logger.warn` 提示
+3. 无 `-i` 参数时：通过 `@inquirer/prompts` 的 `checkbox` 交互式多选，至少选一个（validate 强制）
 
-- 逗号分割多个关键字
-- 对每个迭代逐一检查是否包含任意一个关键字（`iteration.name.toLowerCase().includes(keyword.toLowerCase())`）
-- 用 `Set<number>` 去重，保持原列表顺序
-- 零命中：`logger.error('未找到匹配的迭代')` 后 `process.exit(1)`
+**输出目录**：
+
+- 默认 `./quality-report`
+- 不存在时自动创建（包括 `<outputDir>/images/` 子目录）
+- 已存在时：保留目录，逐个覆盖输出文件；不删除目录（避免误删用户文件）；旧的图片文件可能残留（已知行为，文档说明）
 
 ---
 
 ## 二、数据查询层
 
-### 查询流程
+### 查询流程（单次 API，内存分组）
 
-所有分析部分共享同一次数据拉取，避免重复 API 调用：
+```
+1. businessService.getBugsByIterationsAndTerminals(projectId, iterationIds, [])
+   └── 空数组 = 不限终端类型，拉取全量
+   └── 方法内置：过滤 bug.status?.id === IssueStatusId.REJECTED (值为 6)
 
-1. 调用 `businessService.getBugsByIterationsAndTerminals(projectId, iterationIds, [])` 获取全量 Bug
-   - 第三个参数传空数组，不限制终端类型
-   - 该方法内置过滤逻辑：`bug.status?.id !== IssueStatusId.REJECTED`（即排除 status.id === 6 的已拒绝 Bug）
-2. 批量获取详情：`businessService.getIssueDetails(projectId, issueIds)`，获取含 `custom_fields` 和 `parent_issue` 的完整数据
-3. 在内存中按各部分筛选条件过滤，不重复请求
+2. 提取 issueIds: number[] 后调用：
+   businessService.getIssueDetails(projectId, issueIds, concurrency=10)
+   └── 签名：getIssueDetails(projectId: string, issueIds: number[], concurrency?: number): Promise<IssueDetail[]>
+   └── 内部并发批量调用 apiService.getIssueById，失败条目打 warn 并跳过
+   └── 返回含 custom_fields 和 parent_issue 的完整 IssueDetail[]
 
-### 自定义字段读取方式
+3. 全量 IssueDetail[] 在内存中按各部分筛选条件过滤，不重复请求
+```
 
-`IssueDetail` 的自定义字段存放在 `custom_fields: IssueNewCustomField[]` 数组中，结构为：
+### 自定义字段读取
+
+`IssueDetail.custom_fields: IssueNewCustomField[]`，结构：
 
 ```typescript
 interface IssueNewCustomField {
   custom_field: string; // 字段标识，如 'custom_field24'
-  field_name: string;   // 字段显示名
-  value: string;        // 字段值
+  field_name: string;
+  value: string;
 }
 ```
 
-读取特定字段的通用工具函数：
+通用辅助函数（写在 quality.command.ts 内部）：
 
 ```typescript
 function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | undefined {
@@ -70,125 +77,115 @@ function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | unde
 }
 ```
 
-### 各部分数据切片逻辑
+### 各部分数据切片
 
-| 部分 | 筛选条件 | 字段引用 |
-|------|----------|---------|
-| 总览（第一部分） | 无额外过滤 | 全量 bugs |
-| 网页端（第二部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '网页端'` | `custom_field24` |
-| 移动端（第三部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '移动端'` | `custom_field24` |
-| 平台服务端（第四部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '平台服务端'` | `custom_field24` |
-| 业务服务端（第五部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '业务服务端'` | `custom_field24` |
-| 需求缺陷率（第六部分） | 无额外过滤，按 `parent_issue.name` 聚合 | `parent_issue.name` |
-| 设计缺陷率（第七部分） | `getCustomField(bug, CustomFieldId.DEFECT_TECHNICAL_ANALYSIS)` in `['需求变更问题', '产品设计问题']` | `custom_field32` |
+| 部分 | 筛选条件 |
+|------|---------|
+| 总览（第一部分） | 全量 bugs |
+| 网页端（第二部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '网页端'` |
+| 移动端（第三部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '移动端'` |
+| 平台服务端（第四部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '平台服务端'` |
+| 业务服务端（第五部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '业务服务端'` |
+| 需求缺陷率（第六部分） | 全量，按 `parent_issue?.name` 聚合 |
+| 设计缺陷率（第七部分） | `['需求变更问题', '产品设计问题'].includes(getCustomField(bug, CustomFieldId.DEFECT_TECHNICAL_ANALYSIS) ?? '')` |
 
-> 注意：某个部分数据切片为空时，在 Markdown 中输出"暂无数据"，跳过图表生成。
+> 某部分数据切片为空时：Markdown 输出"暂无数据"，跳过该部分图表生成。
+
+### 字段安全访问
+
+- **研发人员**：`bug.developer?.nick_name ?? '未分配'`（运行时 `developer` 可能为 null，必须用可选链）
+- **父工作项**：`bug.parent_issue?.name ?? '无父工作项'`
 
 ### 修复周期计算
 
-- **计算对象**：仅对 `bug.closed_time` 不为空的 Bug 计算（未关闭 Bug 不纳入修复周期统计）
-- **计算公式**：`Math.ceil((new Date(closed_time).getTime() - new Date(created_time).getTime()) / 86400000)`
-- **分布区间**（X 轴标签）：`≤1天` | `2-3天` | `4-7天` | `8-14天` | `>14天`
-
-```typescript
-function calcFixDuration(bug: IssueDetail): number | null {
-  if (!bug.closed_time) return null;
-  return Math.ceil(
-    (new Date(bug.closed_time).getTime() - new Date(bug.created_time).getTime()) / 86400000
-  );
-}
-
-function bucketsFixDuration(days: number): string {
-  if (days <= 1) return '≤1天';
-  if (days <= 3) return '2-3天';
-  if (days <= 7) return '4-7天';
-  if (days <= 14) return '8-14天';
-  return '>14天';
-}
-```
-
-### 研发人员字段
-
-使用 `bug.developer.nick_name`（`IssueItem.developer` 字段，类型为 `IssueUser`）。`developer` 为空时该 Bug 归类为"未分配"。
-
-### 父工作项字段
-
-使用 `bug.parent_issue?.name`（`IssueItem.parent_issue` 的 `name` 字段）。`parent_issue` 为空时归类为"无父工作项"。
+- **计算对象**：仅 `bug.closed_time != null` 的 Bug
+- **公式**：`Math.ceil((new Date(closed_time) - new Date(created_time)) / 86400000)`
+- **分桶**：`≤1天` | `2-3天` | `4-7天` | `8-14天` | `>14天`
+- **未关闭 Bug**：不纳入修复周期图表（分母只含有 `closed_time` 的 Bug）
 
 ---
 
 ## 三、图表模块架构
 
-### 新增图表模块位置
+### 模块位置
 
-`src/charts/modules/quality/`（独立子目录，与现有 rebug 图表模块隔离）
+`src/charts/modules/quality/`（独立于现有 rebug 图表模块）
 
-### 图表模块清单（4 个复用模块）
+### 4 个复用模块
 
-| 模块文件名 | 图表标题 | ECharts 类型 | 接受数据 |
-|-----------|---------|-------------|---------|
-| `defect-analysis-pie.ts` | 缺陷技术分析分布 | 饼图（环形 donut） | `IssueDetail[]` |
-| `requirement-bug-bar.ts` | 需求 Bug 分布 | 纵向柱状图 | `IssueDetail[]` |
-| `fix-duration-bar.ts` | 修复周期分布 | 柱状图 | `IssueDetail[]` |
-| `developer-bug-bar.ts` | 研发人员 Bug 数量 | 横向柱状图 | `IssueDetail[]` |
+| 文件名 | 标题 | 类型 | 尺寸 |
+|--------|------|------|------|
+| `defect-analysis-pie.ts` | 缺陷技术分析分布 | 饼图（环形 donut） | 600×500 |
+| `requirement-bug-bar.ts` | 需求 Bug 分布 | 纵向柱状图 | 800×500 |
+| `fix-duration-bar.ts` | 修复周期分布 | 柱状图 | 800×500 |
+| `developer-bug-bar.ts` | 研发人员 Bug 数量 | 横向柱状图 | 800×400 |
 
-所有模块复用现有 `ChartModule` 接口：
+所有模块实现现有 `ChartModule` 接口：`{ title: string; buildOption(bugs: IssueDetail[]): object }`。
 
-```typescript
-export interface ChartModule {
-  title: string;
-  buildOption(bugs: IssueDetail[]): object;
-}
-```
+聚合逻辑（按父工作项、按研发人员等）全部在 `buildOption` 内部实现，命令层只传入切片数据。
 
-聚合逻辑（如按父工作项聚合、按研发人员聚合）放在各模块的 `buildOption` 内部，命令层只负责传入数据切片。
+### 图表调用矩阵（完整 24 张映射）
 
-### 图表调用矩阵（24 张图）
+| 部分 | 图1文件名 | 图2文件名 | 图3文件名 | 图4文件名 |
+|------|----------|----------|----------|----------|
+| 总览 | `overview-defect-analysis.png` | `overview-requirement-bug.png` | `overview-fix-duration.png` | `overview-developer-bug.png` |
+| 网页端 | `web-defect-analysis.png` | `web-requirement-bug.png` | `web-fix-duration.png` | `web-developer-bug.png` |
+| 移动端 | `mobile-defect-analysis.png` | `mobile-requirement-bug.png` | `mobile-fix-duration.png` | `mobile-developer-bug.png` |
+| 平台服务端 | `platform-defect-analysis.png` | `platform-requirement-bug.png` | `platform-fix-duration.png` | `platform-developer-bug.png` |
+| 业务服务端 | `business-defect-analysis.png` | `business-requirement-bug.png` | `business-fix-duration.png` | `business-developer-bug.png` |
+| 需求缺陷率 | `req-rate-top-defect-pie.png`（top需求数据） | `req-rate-bug-bar.png`（全量） | - | `req-rate-top-developer-bar.png`（top需求数据） |
+| 设计缺陷率 | - | `design-defect-bar.png`（设计缺陷过滤后） | - | - |
 
-| 章节 | 图表1（饼图） | 图表2（柱状图） | 图表3（柱状图） | 图表4（横向柱状图） |
-|------|------------|--------------|--------------|-----------------|
-| 总览 | defect-analysis-pie | requirement-bug-bar | fix-duration-bar | developer-bug-bar |
-| 网页端 | defect-analysis-pie | requirement-bug-bar | fix-duration-bar | developer-bug-bar |
-| 移动端 | defect-analysis-pie | requirement-bug-bar | fix-duration-bar | developer-bug-bar |
-| 平台服务端 | defect-analysis-pie | requirement-bug-bar | fix-duration-bar | developer-bug-bar |
-| 业务服务端 | defect-analysis-pie | requirement-bug-bar | fix-duration-bar | developer-bug-bar |
-| 需求缺陷率 | defect-analysis-pie（缺陷最多需求） | requirement-bug-bar | - | developer-bug-bar（缺陷最多需求） |
-| 设计缺陷率 | - | requirement-bug-bar（设计缺陷过滤后） | - | - |
+**合计**：5×4 + 3 + 1 = **24 张**
 
-合计：5×4 + 3 + 1 = **24 张**
+> 第六部分6.2和6.3使用"Bug数量最多的父工作项"下的全量Bug（无额外字段过滤），分别传入 `defect-analysis-pie` 和 `developer-bug-bar` 模块。
 
 ### PNG 渲染器
 
-新增 `src/charts/png-renderer.ts`，使用 Puppeteer 将 ECharts option 渲染为 PNG：
+**文件**：`src/charts/png-renderer.ts`
 
-**依赖引入**：需在 `package.json` 中新增 `puppeteer` 依赖（`npm install puppeteer`）。
-
-**接口设计**：
+**ECharts 注入方式**：从本地 node_modules 读取 ECharts 脚本内联注入（不依赖 CDN），避免网络限制：
 
 ```typescript
-export interface PngRenderOptions {
-  width?: number;   // 默认 800
-  height?: number;  // 默认 500
-}
-
-export async function renderChartsToPng(
-  charts: Array<{ option: object; outputPath: string; options?: PngRenderOptions }>
-): Promise<void>
+const echartsScript = fs.readFileSync(
+  require.resolve('echarts/dist/echarts.min.js'),
+  'utf-8'
+);
 ```
 
-**生命周期**：
+> 注意：`echarts` 需新增为项目依赖（`npm install echarts`）。
 
-- `renderChartsToPng` 在函数入口启动单个 Puppeteer 浏览器实例
-- 顺序渲染所有传入的图表（避免并发内存压力）
-- 全部渲染完成后关闭浏览器
-- `try/finally` 确保即使渲染失败也会关闭浏览器
+**接口**：
 
-**渲染方式**：在 Puppeteer Page 中注入 ECharts CDN + option，调用 `chart.getDataURL('png', 1, 'transparent')` 获取 Base64，再写入文件。
+```typescript
+export interface ChartRenderTask {
+  option: object;
+  outputPath: string;   // 绝对路径，如 /output/images/overview-defect-analysis.png
+  width?: number;       // 默认 800
+  height?: number;      // 默认 500
+}
 
-**图表尺寸**：
-- 饼图：600×500
-- 柱状图：800×500
-- 横向柱状图：800×400
+export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
+```
+
+**调用方式**（quality.command.ts 中）：
+
+```typescript
+// 先用 ChartModule 生成 option，再传给渲染器
+const option = defectAnalysisPie.buildOption(filteredBugs);
+await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
+```
+
+**渲染流程**：
+
+1. 启动单个 Puppeteer 浏览器实例
+2. 顺序渲染每个 task（避免并发内存压力）：
+   - `page.setViewport({ width, height })`
+   - 注入内联 ECharts 脚本 + `<div id="chart" style="width:{w}px;height:{h}px">`
+   - `const chart = echarts.init(div); chart.setOption(option);`
+   - `const dataURL = chart.getDataURL('png', 1, 'transparent');`
+   - 将 Base64 写入文件
+3. `finally { await browser.close(); }`
 
 ---
 
@@ -226,9 +223,7 @@ export async function renderChartsToPng(
     └── design-defect-bar.png
 ```
 
-### Markdown 完整格式规范
-
-输出单个文件 `quality-report.md`，格式如下：
+### Markdown 完整格式
 
 ```markdown
 # 质量分析报告
@@ -246,7 +241,7 @@ export async function renderChartsToPng(
 | 缺陷技术分析 | 数量 | 占比 |
 |-------------|------|------|
 | 功能实现问题  | 18   | 42.9% |
-| ...          | ...  | ...   |
+| ...          | ...  | ...  |
 
 ![缺陷技术分析](./images/overview-defect-analysis.png)
 
@@ -254,7 +249,6 @@ export async function renderChartsToPng(
 
 | 需求（父工作项） | Bug 数量 |
 |----------------|---------|
-| 用户管理模块     | 8       |
 | ...             | ...     |
 
 ![需求 Bug 分布](./images/overview-requirement-bug.png)
@@ -265,11 +259,11 @@ export async function renderChartsToPng(
 
 | 修复周期 | 数量 | 占比 |
 |---------|------|------|
-| ≤1 天   | 12   | 28.6% |
-| 2-3 天  | 15   | 35.7% |
-| 4-7 天  | 9    | 21.4% |
-| 8-14 天 | 4    | 9.5%  |
-| >14 天  | 2    | 4.8%  |
+| ≤1 天   | ...  | ...  |
+| 2-3 天  | ...  | ...  |
+| 4-7 天  | ...  | ...  |
+| 8-14 天 | ...  | ...  |
+| >14 天  | ...  | ...  |
 
 ![修复周期分布](./images/overview-fix-duration.png)
 
@@ -277,7 +271,6 @@ export async function renderChartsToPng(
 
 | 研发人员 | Bug 数量 |
 |---------|---------|
-| 张三    | 15      |
 | ...     | ...     |
 
 ![研发人员 Bug 数量](./images/overview-developer-bug.png)
@@ -289,7 +282,7 @@ export async function renderChartsToPng(
 **缺陷总数**：{N} 个
 
 ### 2.1 缺陷技术分析
-...（同第一部分子章节结构）
+...（同第一部分子章节结构，图片前缀 web-）
 
 ### 2.2 需求 Bug 分布
 ...
@@ -303,13 +296,17 @@ export async function renderChartsToPng(
 ---
 
 ## 三、移动端
-...（同结构，图片前缀 mobile-）
+（同结构，图片前缀 mobile-）
+
+---
 
 ## 四、平台服务端
-...（同结构，图片前缀 platform-）
+（同结构，图片前缀 platform-）
+
+---
 
 ## 五、业务服务端
-...（同结构，图片前缀 business-）
+（同结构，图片前缀 business-）
 
 ---
 
@@ -360,6 +357,18 @@ export async function renderChartsToPng(
 ![设计缺陷按需求分布](./images/design-defect-bar.png)
 ```
 
+**空数据处理**：某部分切片为空时，该部分全部子章节输出以下内容替代表格和图片：
+
+```markdown
+> 暂无数据
+```
+
+**图表渲染失败处理**：保留数据表格，图片引用替换为：
+
+```markdown
+> （图表生成失败，请查看控制台日志）
+```
+
 ---
 
 ## 五、新增/修改文件清单
@@ -368,14 +377,14 @@ export async function renderChartsToPng(
 
 ```
 src/
-├── commands/quality.command.ts           # 命令入口（含数据查询、数据切片、Markdown 生成调度）
+├── commands/quality.command.ts           # 命令入口
 ├── charts/
 │   ├── png-renderer.ts                   # Puppeteer PNG 渲染器
 │   └── modules/quality/
-│       ├── defect-analysis-pie.ts        # 缺陷技术分析饼图
-│       ├── requirement-bug-bar.ts        # 需求 Bug 分布柱状图
-│       ├── fix-duration-bar.ts           # 修复周期分布柱状图
-│       └── developer-bug-bar.ts          # 研发人员 Bug 数量横向柱状图
+│       ├── defect-analysis-pie.ts
+│       ├── requirement-bug-bar.ts
+│       ├── fix-duration-bar.ts
+│       └── developer-bug-bar.ts
 ```
 
 ### 修改文件
@@ -383,15 +392,17 @@ src/
 ```
 src/bin/cli.ts                            # 注册 quality 命令
 src/commands/index.ts                     # 导出 qualityCommand
-package.json                              # 新增 puppeteer 依赖
+package.json                              # 新增 puppeteer + echarts 依赖
 ```
 
 ---
 
-## 六、依赖说明
+## 六、新增依赖
 
-- **新增**：`puppeteer`（PNG 渲染，需 `npm install puppeteer`）
-- **复用**：`inquirer`（交互式选择）、`ora`（加载动画）、`axios`（通过 services）、`commander`（CLI 参数解析）
+| 包名 | 用途 |
+|------|------|
+| `puppeteer` | 无头 Chromium，渲染 ECharts 为 PNG |
+| `echarts` | ECharts 图表库（本地 bundle，供 Puppeteer 内联注入） |
 
 ---
 
@@ -399,32 +410,32 @@ package.json                              # 新增 puppeteer 依赖
 
 | 场景 | 处理方式 |
 |------|---------|
-| 迭代不存在 / 零命中 | `logger.error` + `process.exit(1)` |
-| 某部分数据为空 | Markdown 中输出"暂无数据"，跳过该部分图表生成 |
-| PNG 渲染失败 | `logger.warn`，Markdown 中保留表格数据，图片引用替换为"（图表生成失败）" |
+| 迭代零命中（`-i` 参数）| `logger.warn` + fallback 到交互式 checkbox |
+| 某部分数据切片为空 | Markdown 输出"暂无数据"，跳过图表生成 |
+| PNG 渲染失败（单张） | `logger.warn`，Markdown 保留表格，图片引用替换为说明文字 |
 | 输出目录无写权限 | `logger.error` + `process.exit(1)` |
-| Puppeteer 启动失败 | `logger.error` 含详细错误信息 + `process.exit(1)` |
-| `finally` 保证浏览器关闭 | 无论成功或失败，`browser.close()` 在 `finally` 块执行 |
+| Puppeteer 启动失败 | `logger.error`（含详细错误）+ `process.exit(1)` |
+| `browser.close()` 保证 | `try/finally` 块，无论成功或失败均执行 |
 
 ---
 
-## 八、命令执行流程总览
+## 八、命令执行流程
 
 ```
 codearts quality [-i <iterations>] [--output-dir <dir>]
   │
   ├─ 1. 加载配置（config-loader）
-  ├─ 2. 获取迭代列表（getIterations，limit: 12）
-  ├─ 3. 选择迭代（CLI 参数匹配 or inquirer checkbox）
-  ├─ 4. 查询全量 Bug（getBugsByIterationsAndTerminals，空终端类型，排除已拒绝）
-  ├─ 5. 获取 Bug 详情（getIssueDetails，含 custom_fields + parent_issue）
-  ├─ 6. 创建输出目录（outputDir + outputDir/images/）
-  ├─ 7. 启动 Puppeteer 浏览器实例
-  ├─ 8. 按章节循环（共 7 部分）：
-  │     ├─ 过滤数据切片
-  │     ├─ 聚合统计数据（供 Markdown 表格使用）
-  │     ├─ 调用 chartModule.buildOption(slice)
-  │     └─ renderChartsToPng（写入 images/ 目录）
-  ├─ 9. 关闭 Puppeteer 浏览器实例（finally）
-  └─ 10. 生成 quality-report.md（拼接所有章节内容）
+  ├─ 2. getIterations(projectId, { limit: 12 })
+  ├─ 3. 选择迭代（matchIterations 匹配 or inquirer checkbox）
+  ├─ 4. getBugsByIterationsAndTerminals(projectId, iterationIds, [])
+  ├─ 5. getIssueDetails(projectId, issueIds)  ← 含 custom_fields + parent_issue
+  ├─ 6. 创建 <outputDir>/ 和 <outputDir>/images/
+  ├─ 7. 启动 Puppeteer 浏览器（try/finally 包裹后续步骤）
+  ├─ 8. 按章节循环（7 部分）：
+  │     ├─ 按筛选条件切片
+  │     ├─ 聚合统计数据（供 Markdown 表格）
+  │     ├─ chartModule.buildOption(slice) → option
+  │     └─ renderChartsToPng([{ option, outputPath, width, height }])
+  ├─ 9. browser.close()（finally）
+  └─ 10. 生成并写入 quality-report.md
 ```
