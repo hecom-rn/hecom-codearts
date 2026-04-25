@@ -89,7 +89,11 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
 
   // 3. 查询 Bug
   const bugSpinner = ora('正在查询 Bug 数据...').start();
-  const rawBugs = await businessService.getBugsByIterationsAndTerminals(projectId, iterationIds, []);
+  const rawBugs = await businessService.getBugsByIterationsAndTerminals(
+    projectId,
+    iterationIds,
+    []
+  );
   const issueIds = rawBugs.map((b) => b.id);
   const allBugs = await businessService.getIssueDetails(projectId, issueIds, 10);
   bugSpinner.succeed(`已加载 ${allBugs.length} 个 Bug`);
