@@ -15,6 +15,9 @@ export interface ChartRenderTask {
 /**
  * 批量将 ECharts option 渲染为透明背景 PNG 文件
  * 复用单个 Puppeteer 浏览器实例，串行渲染所有任务
+ *
+ * 注：使用 element.screenshot() 而非 chart.getDataURL()，
+ * 因为 headless 模式下 canvas.toDataURL() 受安全限制返回空白。
  */
 export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void> {
   const echartsPath = _require.resolve('echarts/dist/echarts.min.js');
@@ -27,10 +30,10 @@ export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
       const page = await browser.newPage();
       try {
         await page.setViewport({ width, height, deviceScaleFactor: 2 });
-        await page.setContent(`
-          <!DOCTYPE html>
+        await page.setContent(
+          `<!DOCTYPE html>
           <html>
-            <head><style>body{margin:0;background:transparent}</style></head>
+            <head><style>html,body{margin:0;padding:0;background:transparent;}</style></head>
             <body>
               <div id="chart" style="width:${width}px;height:${height}px;"></div>
               <script>${echartsScript}</script>
@@ -40,18 +43,15 @@ export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
                   backgroundColor: 'transparent'
                 });
                 chart.setOption(${JSON.stringify(option)});
-                window.__dataURL = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: 'transparent' });
               </script>
             </body>
-          </html>
-        `);
-        const dataURL: string = await page.evaluate(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          () => (globalThis as any).__dataURL as string
+          </html>`,
+          { waitUntil: 'networkidle0' }
         );
-        const base64 = dataURL.replace(/^data:image\/png;base64,/, '');
+        const el = await page.$('#chart');
+        if (!el) throw new Error(`Chart element not found for: ${outputPath}`);
         fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-        fs.writeFileSync(outputPath, Buffer.from(base64, 'base64'));
+        await el.screenshot({ path: outputPath, omitBackground: true });
       } finally {
         await page.close();
       }
