@@ -83,11 +83,13 @@ function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | unde
 |------|---------|
 | 总览（第一部分） | 全量 bugs |
 | 网页端（第二部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '网页端'` |
-| 移动端（第三部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '移动端'` |
+| 移动端（第三部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '手机端'` |
 | 平台服务端（第四部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '平台服务端'` |
 | 业务服务端（第五部分） | `getCustomField(bug, CustomFieldId.TERMINAL_TYPE) === '业务服务端'` |
 | 需求缺陷率（第六部分） | 全量，按 `parent_issue?.name` 聚合 |
 | 设计缺陷率（第七部分） | `['需求变更问题', '产品设计问题'].includes(getCustomField(bug, CustomFieldId.DEFECT_TECHNICAL_ANALYSIS) ?? '')` |
+
+> 终端类型字段（`custom_field24`）的完整枚举值：`网页端` | `平台服务端` | `业务服务端` | `手机端` | `平台产品` | `行业产品` | `UED` | `质量` | `运维` | `AI产品`。本命令只分析前5类（网页端、手机端、平台服务端、业务服务端），其余终端类型的 Bug 仅计入总览。
 
 > 某部分数据切片为空时：Markdown 输出"暂无数据"，跳过该部分图表生成。
 
@@ -111,22 +113,28 @@ function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | unde
 
 `src/charts/modules/quality/`（独立于现有 rebug 图表模块）
 
-### 4 个复用模块
+### 4 个复用图表模块（函数式，不实现 ChartModule 接口）
 
-| 文件名 | 标题 | 类型 | 尺寸 |
-|--------|------|------|------|
-| `defect-analysis-pie.ts` | 缺陷技术分析分布 | 饼图（环形 donut） | 600×500 |
-| `requirement-bug-bar.ts` | 需求 Bug 分布 | 纵向柱状图 | 800×500 |
-| `fix-duration-bar.ts` | 修复周期分布 | 柱状图 | 800×500 |
-| `developer-bug-bar.ts` | 研发人员 Bug 数量 | 横向柱状图 | 800×400 |
-
-所有模块实现现有 `ChartModule` 接口：`{ title: string; buildOption(bugs: IssueDetail[]): object }`。
-
-图表尺寸信息不放在模块接口上（不修改现有 `ChartModule` 接口，避免影响 `allCharts` 数组），而是在 `quality.command.ts` 中以硬编码方式在 `renderChartsToPng` 调用时传入：
+图表模块**不实现**现有 `ChartModule` 接口，也**不包含 title 字段**。每个模块导出一个纯函数，接受 `IssueDetail[]` 返回 ECharts option 对象：
 
 ```typescript
-// quality.command.ts 中调用示例
-const option = defectAnalysisPie.buildOption(filteredBugs);
+// 示例：defect-analysis-pie.ts
+export function buildDefectAnalysisPieOption(bugs: IssueDetail[]): object { ... }
+```
+
+| 文件名 | 导出函数名 | 图表类型 | 渲染尺寸 |
+|--------|-----------|---------|---------|
+| `defect-analysis-pie.ts` | `buildDefectAnalysisPieOption` | 饼图（环形 donut） | 600×500 |
+| `requirement-bug-bar.ts` | `buildRequirementBugBarOption` | 纵向柱状图 | 800×500 |
+| `fix-duration-bar.ts` | `buildFixDurationBarOption` | 柱状图 | 800×500 |
+| `developer-bug-bar.ts` | `buildDeveloperBugBarOption` | 横向柱状图 | 800×400 |
+
+`quality.command.ts` 中调用示例：
+
+```typescript
+import { buildDefectAnalysisPieOption } from '../charts/modules/quality/defect-analysis-pie';
+
+const option = buildDefectAnalysisPieOption(filteredBugs);
 await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
 ```
 
@@ -179,8 +187,8 @@ export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
 **调用方式**（quality.command.ts 中）：
 
 ```typescript
-// 先用 ChartModule 生成 option，再传给渲染器（命令层持有尺寸信息）
-const option = defectAnalysisPie.buildOption(filteredBugs);
+// 调用图表模块纯函数生成 option，命令层持有尺寸信息
+const option = buildDefectAnalysisPieOption(filteredBugs);
 await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
 ```
 
@@ -444,7 +452,7 @@ codearts quality [-i <iterations>] [--output-dir <dir>]
   ├─ 8. 按章节循环（7 部分）：
   │     ├─ 按筛选条件切片
   │     ├─ 聚合统计数据（供 Markdown 表格）
-  │     ├─ chartModule.buildOption(slice) → option
+  │     ├─ 调用图表模块纯函数(filteredBugs) → option
   │     └─ renderChartsToPng([{ option, outputPath, width, height }])
   ├─ 9. browser.close()（finally）
   └─ 10. 生成并写入 quality-report.md
