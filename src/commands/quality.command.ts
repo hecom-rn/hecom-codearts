@@ -8,11 +8,20 @@ import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duratio
 import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
 import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
 import { BusinessService } from '../services/business.service';
-import { CustomFieldId, IssueDetail, TerminalType } from '../types';
-import { CliOptions, loadConfig } from '../utils/config-loader';
+import { CustomFieldId, IssueDetail, TerminalType } from '../types';import { CliOptions, loadConfig } from '../utils/config-loader';
 import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 import { matchIterations } from './rebug.command';
+
+// ---- 终端类型 → 角色ID 映射 ----
+// 角色ID与终端类型不直接对应，在此手动维护映射关系。
+// 值为该终端对应的研发角色ID列表，留空数组表示不统计人数。
+const TERMINAL_ROLE_MAP: Record<string, number[]> = {
+  [TerminalType.WEB]: [],
+  [TerminalType.MOBILE]: [],
+  [TerminalType.PLATFORM_SERVICE]: [],
+  [TerminalType.BUSINESS_SERVICE]: [],
+};
 
 // ---- 辅助函数 ----
 
@@ -98,13 +107,26 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
   const allBugs = await businessService.getIssueDetails(projectId, issueIds, 10);
   bugSpinner.succeed(`已加载 ${allBugs.length} 个 Bug`);
 
-  // 4. 准备输出目录
+  // 4. 查询各终端研发人数（按角色ID）
+  const memberSpinner = ora('正在查询研发人员数据...').start();
+  const terminalMemberCount = new Map<string, number>();
+  for (const [terminalType, roleIds] of Object.entries(TERMINAL_ROLE_MAP)) {
+    if (roleIds.length === 0) {
+      terminalMemberCount.set(terminalType, 0);
+      continue;
+    }
+    const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+    terminalMemberCount.set(terminalType, members.length);
+  }
+  memberSpinner.succeed('研发人员数据加载完成');
+
+  // 5. 准备输出目录
   const outputDir = path.resolve(cliOptions.outputDir ?? './quality-report');
   const imagesDir = path.join(outputDir, 'images');
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  // 5. 生成报告（图表 + Markdown）
-  await generateReport({ allBugs, outputDir, imagesDir, iterationNames });
+  // 6. 生成报告（图表 + Markdown）
+  await generateReport({ allBugs, outputDir, imagesDir, iterationNames, terminalMemberCount });
 
   logger.info(`质量分析报告已生成：${path.join(outputDir, 'quality-report.md')}`);
 }
@@ -207,6 +229,7 @@ interface SectionConfig {
   prefix: string; // 图片文件名前缀，如 'overview'
   sectionTitle: string; // 如 '一、缺陷总览'
   headingPrefix: string; // 子章节编号前缀，如 '1'
+  memberCount?: number; // 该终端对应的研发人数（0 表示未配置）
 }
 
 async function renderSection(
@@ -214,7 +237,7 @@ async function renderSection(
   config: SectionConfig,
   imagesDir: string
 ): Promise<string> {
-  const { prefix, sectionTitle, headingPrefix } = config;
+  const { prefix, sectionTitle, headingPrefix, memberCount } = config;
 
   if (bugs.length === 0) {
     return `## ${sectionTitle}\n\n> 暂无数据\n\n---\n`;
@@ -257,13 +280,18 @@ async function renderSection(
   const closedCount = bugs.filter((b) => b.closed_time).length;
   const imgRef = (name: string) => `./images/${prefix}-${name}.png`;
 
-  const devCount = devRows.filter((r) => r.name !== '未分配').length;
-  const avgBugs = devCount > 0 ? (bugs.length / devCount).toFixed(1) : '-';
+  // 优先使用按角色查询的人数；未配置（0）时不展示人均
+  const devCount = memberCount ?? 0;
+  const summaryParts = [`**缺陷总数**：${bugs.length} 个`];
+  if (devCount > 0) {
+    summaryParts.push(`**研发人数**：${devCount} 人`);
+    summaryParts.push(`**人均 Bug 数**：${(bugs.length / devCount).toFixed(1)} 个`);
+  }
 
   return [
     `## ${sectionTitle}`,
     '',
-    `**缺陷总数**：${bugs.length} 个 | **研发人数**：${devCount} 人 | **人均 Bug 数**：${avgBugs} 个`,
+    summaryParts.join(' | '),
     '',
     `### ${headingPrefix}.1 缺陷技术分析`,
     '',
@@ -411,6 +439,7 @@ interface GenerateReportParams {
   outputDir: string;
   imagesDir: string;
   iterationNames: string;
+  terminalMemberCount: Map<string, number>;
 }
 
 async function generateReport({
@@ -418,6 +447,7 @@ async function generateReport({
   outputDir,
   imagesDir,
   iterationNames,
+  terminalMemberCount,
 }: GenerateReportParams): Promise<void> {
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
 
@@ -429,29 +459,47 @@ async function generateReport({
   sections.push(`# 质量分析报告\n\n> 迭代：${iterationNames} | 生成时间：${now}\n\n---\n`);
 
   // 第一至第五部分
-  const terminalSections: Array<{ title: string; heading: string; filter: IssueDetail[] }> = [
+  const terminalSections: Array<{
+    title: string;
+    heading: string;
+    filter: IssueDetail[];
+    terminalType?: string;
+  }> = [
     { title: '一、缺陷总览', heading: '1', filter: allBugs },
-    { title: '二、网页端', heading: '2', filter: filterByTerminal(allBugs, TerminalType.WEB) },
-    { title: '三、移动端', heading: '3', filter: filterByTerminal(allBugs, TerminalType.MOBILE) },
+    {
+      title: '二、网页端',
+      heading: '2',
+      filter: filterByTerminal(allBugs, TerminalType.WEB),
+      terminalType: TerminalType.WEB,
+    },
+    {
+      title: '三、移动端',
+      heading: '3',
+      filter: filterByTerminal(allBugs, TerminalType.MOBILE),
+      terminalType: TerminalType.MOBILE,
+    },
     {
       title: '四、平台服务端',
       heading: '4',
       filter: filterByTerminal(allBugs, TerminalType.PLATFORM_SERVICE),
+      terminalType: TerminalType.PLATFORM_SERVICE,
     },
     {
       title: '五、业务服务端',
       heading: '5',
       filter: filterByTerminal(allBugs, TerminalType.BUSINESS_SERVICE),
+      terminalType: TerminalType.BUSINESS_SERVICE,
     },
   ];
   const prefixes = ['overview', 'web', 'mobile', 'platform', 'business'];
 
   for (let i = 0; i < terminalSections.length; i++) {
-    const { title, heading, filter } = terminalSections[i];
+    const { title, heading, filter, terminalType } = terminalSections[i];
+    const memberCount = terminalType ? terminalMemberCount.get(terminalType) : undefined;
     sections.push(
       await renderSection(
         filter,
-        { prefix: prefixes[i], sectionTitle: title, headingPrefix: heading },
+        { prefix: prefixes[i], sectionTitle: title, headingPrefix: heading, memberCount },
         imagesDir
       )
     );
