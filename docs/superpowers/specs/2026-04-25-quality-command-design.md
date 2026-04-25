@@ -1,7 +1,7 @@
 # 质量分析命令设计文档
 
 **日期**：2026-04-25  
-**状态**：已批准（v3）  
+**状态**：已批准（v4）  
 **范围**：新增 `codearts quality` 顶级命令
 
 ---
@@ -29,7 +29,7 @@ Options:
 
 1. 调用 `businessService.getIterations(projectId, { limit: 12 })` 获取迭代列表
 2. 有 `-i` 参数时：调用 `matchIterations(iterations, value)` 做子字符串匹配（不区分大小写），命中则跳过交互；**未命中时 fallback 到交互式 checkbox（不退出）**，并输出 `logger.warn` 提示
-3. 无 `-i` 参数时：通过 `@inquirer/prompts` 的 `checkbox` 交互式多选，至少选一个（validate 强制）
+3. 无 `-i` 参数时：通过 `import { checkbox } from '@inquirer/prompts'` 的 `checkbox` 交互式多选，至少选一个（validate 强制）。`@inquirer/prompts` 由 `inquirer@^13.x` 内部提供，无需单独安装。
 
 **输出目录**：
 
@@ -52,14 +52,14 @@ Options:
    businessService.getIssueDetails(projectId, issueIds, concurrency=10)
    └── 签名：getIssueDetails(projectId: string, issueIds: number[], concurrency?: number): Promise<IssueDetail[]>
    └── 内部并发批量调用 apiService.getIssueById，失败条目打 warn 并跳过
-   └── 返回含 custom_fields 和 parent_issue 的完整 IssueDetail[]
+   └── 返回含 new_custom_fields 和 parent_issue 的完整 IssueDetail[]
 
 3. 全量 IssueDetail[] 在内存中按各部分筛选条件过滤，不重复请求
 ```
 
 ### 自定义字段读取
 
-`IssueDetail.custom_fields: IssueNewCustomField[]`，结构：
+`IssueItem` 上有两个自定义字段数组：`custom_fields: IssueCustomField[]` 和 `new_custom_fields: IssueNewCustomField[]`。**应使用 `new_custom_fields`**（与 `fix.command.ts` 一致），结构为：
 
 ```typescript
 interface IssueNewCustomField {
@@ -73,7 +73,7 @@ interface IssueNewCustomField {
 
 ```typescript
 function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | undefined {
-  return bug.custom_fields?.find((f) => f.custom_field === fieldId)?.value;
+  return (bug.new_custom_fields || []).find((f) => f.custom_field === fieldId)?.value;
 }
 ```
 
@@ -122,7 +122,13 @@ function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | unde
 
 所有模块实现现有 `ChartModule` 接口：`{ title: string; buildOption(bugs: IssueDetail[]): object }`。
 
-聚合逻辑（按父工作项、按研发人员等）全部在 `buildOption` 内部实现，命令层只传入切片数据。
+图表尺寸信息不放在模块接口上（不修改现有 `ChartModule` 接口，避免影响 `allCharts` 数组），而是在 `quality.command.ts` 中以硬编码方式在 `renderChartsToPng` 调用时传入：
+
+```typescript
+// quality.command.ts 中调用示例
+const option = defectAnalysisPie.buildOption(filteredBugs);
+await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
+```
 
 ### 图表调用矩阵（完整 24 张映射）
 
@@ -138,22 +144,24 @@ function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | unde
 
 **合计**：5×4 + 3 + 1 = **24 张**
 
-> 第六部分6.2和6.3使用"Bug数量最多的父工作项"下的全量Bug（无额外字段过滤），分别传入 `defect-analysis-pie` 和 `developer-bug-bar` 模块。
+> 第六部分6.2和6.3使用"Bug数量最多的父工作项"（即 `parent_issue?.name` 出现次数最多的那个值）下的全量 Bug（无额外字段过滤），仅通过 `bug.parent_issue?.name === topRequirementName` 过滤，分别传入 `defect-analysis-pie` 和 `developer-bug-bar` 模块。
 
 ### PNG 渲染器
 
 **文件**：`src/charts/png-renderer.ts`
 
-**ECharts 注入方式**：从本地 node_modules 读取 ECharts 脚本内联注入（不依赖 CDN），避免网络限制：
+**ECharts 注入方式**：从本地 node_modules 读取 ECharts 脚本内联注入（不依赖 CDN），使用 `require.resolve` 解析路径：
 
 ```typescript
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url ?? __filename);
 const echartsScript = fs.readFileSync(
   require.resolve('echarts/dist/echarts.min.js'),
   'utf-8'
 );
 ```
 
-> 注意：`echarts` 需新增为项目依赖（`npm install echarts`）。
+> 注意：`echarts` 需新增为项目依赖（`npm install echarts`）。`require.resolve` 从项目根目录的 `node_modules` 解析，在编译后的 `dist/` 下同样有效（Node.js 向上查找 `node_modules`）。
 
 **接口**：
 
@@ -171,7 +179,7 @@ export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
 **调用方式**（quality.command.ts 中）：
 
 ```typescript
-// 先用 ChartModule 生成 option，再传给渲染器
+// 先用 ChartModule 生成 option，再传给渲染器（命令层持有尺寸信息）
 const option = defectAnalysisPie.buildOption(filteredBugs);
 await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
 ```
@@ -357,6 +365,8 @@ await renderChartsToPng([{ option, outputPath, width: 600, height: 500 }]);
 ![设计缺陷按需求分布](./images/design-defect-bar.png)
 ```
 
+Markdown 文件中图片使用**相对路径** `./images/xxx.png`，报告文件与 `images/` 目录同级，在 `outputDir` 内打开 Markdown 即可正常渲染图片。
+
 **空数据处理**：某部分切片为空时，该部分全部子章节输出以下内容替代表格和图片：
 
 ```markdown
@@ -428,7 +438,7 @@ codearts quality [-i <iterations>] [--output-dir <dir>]
   ├─ 2. getIterations(projectId, { limit: 12 })
   ├─ 3. 选择迭代（matchIterations 匹配 or inquirer checkbox）
   ├─ 4. getBugsByIterationsAndTerminals(projectId, iterationIds, [])
-  ├─ 5. getIssueDetails(projectId, issueIds)  ← 含 custom_fields + parent_issue
+  ├─ 5. getIssueDetails(projectId, issueIds)  ← 含 new_custom_fields + parent_issue
   ├─ 6. 创建 <outputDir>/ 和 <outputDir>/images/
   ├─ 7. 启动 Puppeteer 浏览器（try/finally 包裹后续步骤）
   ├─ 8. 按章节循环（7 部分）：
