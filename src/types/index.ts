@@ -619,6 +619,24 @@ export enum CustomFieldId {
 }
 
 /**
+ * 终端类型枚举
+ * custom_field24（终端类型）字段的选项值枚举定义
+ */
+export enum TerminalType {
+  // "1. 网页端,2. 平台服务端,3. 业务服务端,4. 手机端,6. 平台产品,7. 行业产品,8. UED,9. 质量,10. 运维,11.AI产品"
+  WEB = '1. 网页端',
+  PLATFORM_SERVICE = '2. 平台服务端',
+  BUSINESS_SERVICE = '3. 业务服务端',
+  MOBILE = '4. 手机端',
+  PLATFORM_PRODUCT = '6. 平台产品',
+  INDUSTRY_PRODUCT = '7. 行业产品',
+  UED = '8. UED',
+  QUALITY = '9. 质量',
+  OPERATIONS = '10. 运维',
+  AI_PRODUCT = '11.AI产品',
+}
+
+/**
  * 缺陷技术分析选项枚举
  * custom_field32（缺陷技术分析）字段的选项值枚举定义
  */

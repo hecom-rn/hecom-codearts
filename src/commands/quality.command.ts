@@ -1,18 +1,18 @@
-import path from 'path';
-import fs from 'fs';
 import { checkbox } from '@inquirer/prompts';
+import fs from 'fs';
 import ora from 'ora';
-import { CliOptions, loadConfig } from '../utils/config-loader';
-import { logger } from '../utils/logger';
-import { BusinessService } from '../services/business.service';
-import { IssueDetail, CustomFieldId } from '../types';
-import { globalTheme } from '../utils/inquirer-theme';
-import { matchIterations } from './rebug.command';
-import { renderChartsToPng, ChartRenderTask } from '../charts/png-renderer';
+import path from 'path';
 import { buildDefectAnalysisPieOption } from '../charts/modules/quality/defect-analysis-pie';
-import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
-import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duration-bar';
 import { buildDeveloperBugBarOption } from '../charts/modules/quality/developer-bug-bar';
+import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duration-bar';
+import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
+import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
+import { BusinessService } from '../services/business.service';
+import { CustomFieldId, IssueDetail, TerminalType } from '../types';
+import { CliOptions, loadConfig } from '../utils/config-loader';
+import { globalTheme } from '../utils/inquirer-theme';
+import { logger } from '../utils/logger';
+import { matchIterations } from './rebug.command';
 
 // ---- 辅助函数 ----
 
@@ -428,10 +428,18 @@ async function generateReport({
   // 第一至第五部分
   const terminalSections: Array<{ title: string; heading: string; filter: IssueDetail[] }> = [
     { title: '一、缺陷总览', heading: '1', filter: allBugs },
-    { title: '二、网页端', heading: '2', filter: filterByTerminal(allBugs, '网页端') },
-    { title: '三、移动端', heading: '3', filter: filterByTerminal(allBugs, '手机端') },
-    { title: '四、平台服务端', heading: '4', filter: filterByTerminal(allBugs, '平台服务端') },
-    { title: '五、业务服务端', heading: '5', filter: filterByTerminal(allBugs, '业务服务端') },
+    { title: '二、网页端', heading: '2', filter: filterByTerminal(allBugs, TerminalType.WEB) },
+    { title: '三、移动端', heading: '3', filter: filterByTerminal(allBugs, TerminalType.MOBILE) },
+    {
+      title: '四、平台服务端',
+      heading: '4',
+      filter: filterByTerminal(allBugs, TerminalType.PLATFORM_SERVICE),
+    },
+    {
+      title: '五、业务服务端',
+      heading: '5',
+      filter: filterByTerminal(allBugs, TerminalType.BUSINESS_SERVICE),
+    },
   ];
   const prefixes = ['overview', 'web', 'mobile', 'platform', 'business'];
 
