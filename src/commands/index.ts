@@ -4,3 +4,4 @@ export { configCommand } from './config.command';
 export { bugCommand } from './bug.command';
 export { fixCommand } from './fix.command';
 export { rebugChartCommand, rebugNoTagCommand } from './rebug.command';
+export { qualityCommand } from './quality.command';

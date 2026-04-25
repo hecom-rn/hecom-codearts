@@ -13,6 +13,7 @@ import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
 import { workHourCommand } from '../commands/work-hour.command';
+import { qualityCommand } from '../commands/quality.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
 import { logger } from '../utils/logger';
@@ -103,9 +104,27 @@ program
     await fixCommand(cliOptions);
   });
 
+// quality 命令
+program
+  .command('quality')
+  .description('生成质量分析报告（缺陷多维分析 + ECharts PNG 图表）')
+  .option('-i, --iteration <names>', '迭代名称，逗号分隔（不传时交互式多选）')
+  .option('--output-dir <path>', '输出目录', './quality-report')
+  .action(async (options, command) => {
+    try {
+      await qualityCommand({
+        iteration: options.iteration,
+        outputDir: options.outputDir,
+        ...command.parent?.opts(),
+      });
+    } catch (error: unknown) {
+      logger.error(`质量分析命令执行失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
 // rebug 命令组
 const rebugCmd = program.command('rebug').description('Bug 列表交互式查询与分析');
-
 // rebug chart 子命令
 rebugCmd
   .command('chart')
