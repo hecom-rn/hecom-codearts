@@ -29,10 +29,32 @@ export function buildFixDurationBarOption(bugs: IssueDetail[]): object {
 
   return {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
-    xAxis: { type: 'category', data: BUCKETS },
-    yAxis: { type: 'value', name: 'Bug 数量' },
-    series: [{ type: 'bar', data: values, label: { show: true, position: 'top' } }],
+    title: {
+      text: '修复周期分布',
+      left: 'center',
+      textStyle: { fontSize: 16, fontWeight: 'bold' },
+    },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '8%', top: '15%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: BUCKETS,
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Bug 数量',
+      axisLine: { show: false },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: values,
+        label: { show: true, position: 'top', fontWeight: 600 },
+        itemStyle: { borderRadius: 6 },
+        barCategoryGap: '40%',
+      },
+    ],
   };
 }

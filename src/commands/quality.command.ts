@@ -8,7 +8,8 @@ import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duratio
 import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
 import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
 import { BusinessService } from '../services/business.service';
-import { CustomFieldId, IssueDetail, TerminalType } from '../types';import { CliOptions, loadConfig } from '../utils/config-loader';
+import { CustomFieldId, IssueDetail, TerminalType } from '../types';
+import { CliOptions, loadConfig } from '../utils/config-loader';
 import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 import { matchIterations } from './rebug.command';
@@ -17,10 +18,10 @@ import { matchIterations } from './rebug.command';
 // 角色ID与终端类型不直接对应，在此手动维护映射关系。
 // 值为该终端对应的研发角色ID列表，留空数组表示不统计人数。
 const TERMINAL_ROLE_MAP: Record<string, number[]> = {
-  [TerminalType.WEB]: [],
-  [TerminalType.MOBILE]: [],
-  [TerminalType.PLATFORM_SERVICE]: [],
-  [TerminalType.BUSINESS_SERVICE]: [],
+  [TerminalType.WEB]: [511],
+  [TerminalType.MOBILE]: [512],
+  [TerminalType.PLATFORM_SERVICE]: [510],
+  [TerminalType.BUSINESS_SERVICE]: [1002],
 };
 
 // ---- 辅助函数 ----

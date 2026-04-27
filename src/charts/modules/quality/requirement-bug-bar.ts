@@ -17,14 +17,33 @@ export function buildRequirementBugBarOption(bugs: IssueDetail[]): object {
 
   return {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+    title: {
+      text: '需求 Bug 分布',
+      left: 'center',
+      textStyle: { fontSize: 16, fontWeight: 'bold' },
+    },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
     xAxis: {
       type: 'category',
       data: categories,
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: { rotate: 30, interval: 0, overflow: 'truncate', width: 120 },
     },
-    yAxis: { type: 'value', name: 'Bug 数量' },
-    series: [{ type: 'bar', data: values, label: { show: true, position: 'top' } }],
+    yAxis: {
+      type: 'value',
+      name: 'Bug 数量',
+      axisLine: { show: false },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: values,
+        label: { show: true, position: 'top', fontWeight: 600 },
+        itemStyle: { borderRadius: 6 },
+        barCategoryGap: '40%',
+      },
+    ],
   };
 }

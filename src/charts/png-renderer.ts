@@ -2,8 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import puppeteer from 'puppeteer';
+import macarons from './macarons';
 
 const _require = createRequire(__filename);
+const macaronsJson = JSON.stringify(macarons);
 
 export interface ChartRenderTask {
   option: object;
@@ -38,11 +40,12 @@ export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void>
               <div id="chart" style="width:${width}px;height:${height}px;"></div>
               <script>${echartsScript}</script>
               <script>
-                const chart = echarts.init(document.getElementById('chart'), null, {
+                echarts.registerTheme('macarons', ${macaronsJson});
+                const chart = echarts.init(document.getElementById('chart'), 'macarons', {
                   renderer: 'canvas',
                   backgroundColor: 'transparent'
                 });
-                chart.setOption(${JSON.stringify(option)});
+                chart.setOption(Object.assign({ animation: false }, ${JSON.stringify(option)}));
               </script>
             </body>
           </html>`,

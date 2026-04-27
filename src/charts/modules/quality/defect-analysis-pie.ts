@@ -20,14 +20,25 @@ export function buildDefectAnalysisPieOption(bugs: IssueDetail[]): object {
 
   return {
     backgroundColor: 'transparent',
+    title: {
+      text: '缺陷技术分析分布',
+      left: 'center',
+      textStyle: { fontSize: 16, fontWeight: 'bold' },
+    },
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { orient: 'vertical', left: 'left', type: 'scroll' },
     series: [
       {
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: ['42%', '68%'],
+        center: ['50%', '55%'],
         avoidLabelOverlap: true,
-        label: { show: true, formatter: '{b}\n{d}%' },
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: '{b}: {d}%',
+        },
+        labelLine: { length: 18, length2: 6, lineStyle: { width: 1 } },
+        itemStyle: { borderWidth: 0 },
         data,
       },
     ],

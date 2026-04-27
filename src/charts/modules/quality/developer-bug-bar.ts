@@ -17,19 +17,33 @@ export function buildDeveloperBugBarOption(bugs: IssueDetail[]): object {
 
   return {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis' },
-    grid: { left: '15%', right: '8%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'value', name: 'Bug 数量' },
+    title: {
+      text: '研发人员 Bug 数量',
+      left: 'center',
+      textStyle: { fontSize: 16, fontWeight: 'bold' },
+    },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '15%', right: '10%', bottom: '3%', top: '15%', containLabel: true },
+    xAxis: {
+      type: 'value',
+      name: 'Bug 数量',
+      axisLine: { show: false },
+    },
     yAxis: {
       type: 'category',
       data: categories.reverse(),
+      inverse: false,
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: { width: 100, overflow: 'truncate' },
     },
     series: [
       {
         type: 'bar',
         data: values.reverse(),
-        label: { show: true, position: 'right' },
+        label: { show: true, position: 'right', fontWeight: 600 },
+        itemStyle: { borderRadius: 6 },
+        barCategoryGap: '40%',
       },
     ],
   };
