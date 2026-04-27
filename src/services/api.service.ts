@@ -23,8 +23,10 @@ import {
   RequestOptions,
   ShowProjectWorkHoursRequest,
   ShowProjectWorkHoursResponse,
+  TestPlanQueryResponse,
   UpdateIssueRequest,
 } from '../types';
+import { logger } from '../utils/logger';
 
 /**
  * 华为云CodeArts API服务类
@@ -32,6 +34,7 @@ import {
  */
 export class ApiService {
   private client: AxiosInstance;
+  private cloudTestClient: AxiosInstance;
   private iamClient: AxiosInstance;
   private config: HuaweiCloudConfig;
   private cachedToken: CachedToken | null = null;
@@ -43,6 +46,9 @@ export class ApiService {
     };
     this.enableLogging = config.enableLogging ?? false;
 
+    const projectManBaseUrl = `https://projectman-ext.${this.config.region}.myhuaweicloud.cn`;
+    const cloudTestBaseUrl = `https://cloudtest-ext.${this.config.region}.myhuaweicloud.com`;
+
     // 初始化IAM客户端（用于获取Token）
     this.iamClient = axios.create({
       baseURL: this.config.iamEndpoint,
@@ -51,9 +57,17 @@ export class ApiService {
       },
     });
 
-    // 初始化主客户端（用于调用CodeArts API）
+    // 初始化主客户端（用于调用项目管理 API）
     this.client = axios.create({
-      baseURL: this.config.endpoint,
+      baseURL: projectManBaseUrl,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // 初始化 CloudTest 客户端（用于调用测试计划 API）
+    this.cloudTestClient = axios.create({
+      baseURL: cloudTestBaseUrl,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -126,10 +140,10 @@ export class ApiService {
       }
     }
 
-    const emoji = clientType === 'IAM' ? '🔐' : '🔄';
-    console.log(`\n${emoji} ${clientType}请求 [${method}]:`);
-    console.log(curlCmd);
-    console.log('');
+    const clientLabel = `${clientType}请求 [${method}]`;
+    logger.info(`\n${clientLabel}:`);
+    logger.info(curlCmd);
+    logger.info('');
   }
 
   /**
@@ -144,7 +158,7 @@ export class ApiService {
         return config;
       },
       (error) => {
-        console.error('IAM请求错误:', error);
+        logger.error(`IAM请求错误: ${String(error)}`);
         return Promise.reject(error);
       }
     );
@@ -155,7 +169,7 @@ export class ApiService {
       },
       (error) => {
         if (this.enableLogging) {
-          console.error('IAM响应错误:', error.response?.data || error.message);
+          logger.error(`IAM响应错误: ${String(error.response?.data || error.message)}`);
         }
         return Promise.reject(error);
       }
@@ -180,7 +194,7 @@ export class ApiService {
         return config;
       },
       (error) => {
-        console.error('CodeArts请求错误:', error);
+        logger.error(`CodeArts请求错误: ${String(error)}`);
         return Promise.reject(error);
       }
     );
@@ -205,11 +219,52 @@ export class ApiService {
               return this.client(originalRequest);
             }
           } catch (refreshError) {
-            console.error('刷新Token失败:', refreshError);
+            logger.error(`刷新Token失败: ${String(refreshError)}`);
           }
         }
 
-        console.error('CodeArts响应错误:', error.response?.data || error.message);
+        logger.error(`CodeArts响应错误: ${String(error.response?.data || error.message)}`);
+        return Promise.reject(error);
+      }
+    );
+
+    // cloudTest 客户端拦截器（与主客户端共享 Token 逻辑）
+    this.cloudTestClient.interceptors.request.use(
+      async (config) => {
+        const token = await this.getValidToken();
+        if (token) {
+          config.headers['X-Auth-Token'] = token;
+        }
+        if (this.cachedToken?.projectId) {
+          config.headers['X-Project-Id'] = this.cachedToken.projectId;
+        }
+        this.logCurlRequest(config, 'CloudTest');
+        return config;
+      },
+      (error) => {
+        logger.error(`CloudTest请求错误: ${String(error)}`);
+        return Promise.reject(error);
+      }
+    );
+
+    this.cloudTestClient.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          try {
+            this.cachedToken = null;
+            const newToken = await this.getValidToken();
+            if (newToken) {
+              originalRequest.headers['X-Auth-Token'] = newToken;
+              return this.cloudTestClient(originalRequest);
+            }
+          } catch (refreshError) {
+            logger.error(`刷新Token失败: ${String(refreshError)}`);
+          }
+        }
+        logger.error(`CloudTest响应错误: ${String(error.response?.data || error.message)}`);
         return Promise.reject(error);
       }
     );
@@ -330,13 +385,6 @@ export class ApiService {
         error: String(error),
       };
     }
-  }
-
-  /**
-   * 设置CodeArts API的基础URL
-   */
-  setCodeArtsBaseUrl(baseUrl: string): void {
-    this.client.defaults.baseURL = baseUrl;
   }
 
   /**
@@ -564,5 +612,49 @@ export class ApiService {
   async refreshToken(): Promise<string> {
     this.cachedToken = null;
     return this.getValidToken();
+  }
+
+  /**
+   * 使用 cloudTestClient 发起请求
+   */
+  private async cloudTestRequest<T>(
+    url: string,
+    options: RequestOptions = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const config: AxiosRequestConfig = {
+        url,
+        method: options.method || 'GET',
+        headers: options.headers,
+        params: options.params,
+        data: options.data,
+      };
+      const response = await this.cloudTestClient.request(config);
+      return { success: true, data: response.data, message: 'Request successful' };
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error_msg || error.response?.data?.message || error.message,
+        };
+      }
+      return { success: false, data: null, error: String(error) };
+    }
+  }
+
+  /**
+   * 批量查询测试计划
+   * @param projectUuid 项目 UUID
+   * @param name 测试计划名称（模糊匹配，可选）
+   */
+  async queryTestPlans(
+    projectUuid: string,
+    name?: string
+  ): Promise<ApiResponse<TestPlanQueryResponse>> {
+    return this.cloudTestRequest<TestPlanQueryResponse>('/v4/iterators/info/batch-query', {
+      method: 'POST',
+      data: { project_uuid: projectUuid, ...(name ? { name } : {}) },
+    });
   }
 }
