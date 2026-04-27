@@ -21,6 +21,8 @@ jest.mock('../../src/commands/config.command', () => ({
 jest.mock('../../src/commands/daily.command', () => ({ dailyCommand: jest.fn() }));
 jest.mock('../../src/commands/work-hour.command', () => ({ workHourCommand: jest.fn() }));
 jest.mock('../../src/commands/bug.command', () => ({ bugCommand: jest.fn() }));
+jest.mock('../../src/commands/quality.command', () => ({ qualityCommand: jest.fn() }));
+jest.mock('../../src/charts/png-renderer', () => ({}));
 
 describe('CLI Entry Point', () => {
   let dailyCommand: any;

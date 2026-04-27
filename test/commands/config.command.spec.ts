@@ -95,7 +95,6 @@ describe('Config Command', () => {
       prompts.input
         .mockResolvedValueOnce('https://iam.test') // Endpoint
         .mockResolvedValueOnce('cn-test') // Region
-        .mockResolvedValueOnce('https://codearts.test') // API URL
         .mockResolvedValueOnce('test-domain') // Domain
         .mockResolvedValueOnce('test-user'); // Username
 

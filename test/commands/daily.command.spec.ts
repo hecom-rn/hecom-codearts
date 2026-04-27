@@ -30,7 +30,7 @@ describe('Daily Command', () => {
 
     // Setup BusinessService mock
     mockBusinessServiceInstance = {
-      getMembersByRoleIds: jest.fn().mockReturnValue(
+      getMembers: jest.fn().mockReturnValue(
         Promise.resolve([
           { user_id: 'u1', user_num_id: 1, role_name: 'Dev' },
           { user_id: 'u2', user_num_id: 2, role_name: 'Tester' },
@@ -93,7 +93,7 @@ describe('Daily Command', () => {
   it('should run daily report for today (default)', async () => {
     await dailyCommand();
 
-    expect(mockBusinessServiceInstance.getMembersByRoleIds).toHaveBeenCalled();
+    expect(mockBusinessServiceInstance.getMembers).toHaveBeenCalled();
     expect(mockBusinessServiceInstance.getDailyWorkHourStats).toHaveBeenCalled();
     // Default output is console
     expect(logger.info).toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe('Daily Command', () => {
   });
 
   it('should handle API errors', async () => {
-    mockBusinessServiceInstance.getMembersByRoleIds.mockRejectedValue(new Error('API Error'));
+    mockBusinessServiceInstance.getMembers.mockRejectedValue(new Error('API Error'));
 
     await expect(dailyCommand()).rejects.toThrow('API Error');
   });

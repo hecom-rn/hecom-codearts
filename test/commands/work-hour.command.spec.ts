@@ -33,7 +33,7 @@ describe('Work Hour Command', () => {
 
     // Setup BusinessService mock
     mockBusinessServiceInstance = {
-      getMembersByRoleIds: jest.fn().mockReturnValue(
+      getMembers: jest.fn().mockReturnValue(
         Promise.resolve([
           { user_id: 'u1', role_name: 'Dev', role_id: 1 },
           { user_id: 'u2', role_name: 'Tester', role_id: 2 },
@@ -75,7 +75,7 @@ describe('Work Hour Command', () => {
   it('should run work hour report for current year (default)', async () => {
     await workHourCommand();
 
-    expect(mockBusinessServiceInstance.getMembersByRoleIds).toHaveBeenCalled();
+    expect(mockBusinessServiceInstance.getMembers).toHaveBeenCalled();
     expect(mockBusinessServiceInstance.getAllWorkHourStats).toHaveBeenCalled();
     // Default output is console table
     expect(logger.table).toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('Work Hour Command', () => {
   });
 
   it('should handle API errors', async () => {
-    mockBusinessServiceInstance.getMembersByRoleIds.mockRejectedValue(new Error('API Error'));
+    mockBusinessServiceInstance.getMembers.mockRejectedValue(new Error('API Error'));
 
     await expect(workHourCommand()).rejects.toThrow('API Error');
   });

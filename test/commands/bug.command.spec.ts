@@ -40,7 +40,7 @@ describe('Bug Command', () => {
     // Setup BusinessService mock
     mockBusinessServiceInstance = {
       getIterations: jest.fn().mockReturnValue(Promise.resolve(iterations)),
-      getMembersByRoleIds: jest
+      getMembers: jest
         .fn()
         .mockReturnValue(
           Promise.resolve([{ user_id: 'u1', user_num_id: 1, role_name: 'Dev', role_id: 1 }])
