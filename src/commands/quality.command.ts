@@ -8,9 +8,17 @@ import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duratio
 import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
 import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
 import { BusinessService } from '../services/business.service';
-import { CustomFieldId, IssueDetail, TerminalType } from '../types';
+import {
+  CustomFieldId,
+  IssueDetail,
+  IssueItem,
+  IssueStatusId,
+  IssueTrackerId,
+  TerminalType,
+} from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { globalTheme } from '../utils/inquirer-theme';
+import { issueLink } from '../utils/console';
 import { logger } from '../utils/logger';
 import { matchIterations } from './rebug.command';
 
@@ -121,13 +129,47 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
   }
   memberSpinner.succeed('研发人员数据加载完成');
 
-  // 5. 准备输出目录
+  // 5. 查询测试计划（聚合多迭代用例数，取第一个匹配的计划）
+  const planSpinner = ora('正在查询测试计划数据...').start();
+  let testPlanStats: { caseNum: number; passRate: string; fixRate: string } | undefined;
+  {
+    let totalCaseNum = 0;
+    for (const it of selectedIterations) {
+      const plan = await businessService.getTestPlanByIterationName(projectId, it.name);
+      if (plan) {
+        totalCaseNum += plan.design?.case_num ?? 0;
+      }
+    }
+    if (totalCaseNum > 0) {
+      const passRateVal = ((1 - allBugs.length / totalCaseNum) * 100).toFixed(2);
+      const fixedCount = allBugs.filter(
+        (b) => b.status.id === IssueStatusId.RESOLVED || b.status.id === IssueStatusId.CLOSED
+      ).length;
+      const fixRateVal =
+        allBugs.length > 0 ? ((fixedCount / allBugs.length) * 100).toFixed(2) : '100.00';
+      testPlanStats = {
+        caseNum: totalCaseNum,
+        passRate: `${passRateVal}%`,
+        fixRate: `${fixRateVal}%`,
+      };
+    }
+  }
+  planSpinner.succeed('测试计划数据加载完成');
+
+  // 7. 准备输出目录
   const outputDir = path.resolve(cliOptions.outputDir ?? './quality-report');
   const imagesDir = path.join(outputDir, 'images');
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  // 6. 生成报告（图表 + Markdown）
-  await generateReport({ allBugs, outputDir, imagesDir, iterationNames, terminalMemberCount });
+  // 8. 生成报告（图表 + Markdown）
+  await generateReport({
+    allBugs,
+    outputDir,
+    imagesDir,
+    iterationNames,
+    terminalMemberCount,
+    testPlanStats,
+  });
 
   logger.info(`质量分析报告已生成：${path.join(outputDir, 'quality-report.md')}`);
 }
@@ -231,6 +273,7 @@ interface SectionConfig {
   sectionTitle: string; // 如 '一、缺陷总览'
   headingPrefix: string; // 子章节编号前缀，如 '1'
   memberCount?: number; // 该终端对应的研发人数（0 表示未配置）
+  testPlanStats?: { caseNum: number; passRate: string; fixRate: string }; // 测试计划统计（仅第一部分）
 }
 
 async function renderSection(
@@ -238,7 +281,7 @@ async function renderSection(
   config: SectionConfig,
   imagesDir: string
 ): Promise<string> {
-  const { prefix, sectionTitle, headingPrefix, memberCount } = config;
+  const { prefix, sectionTitle, headingPrefix, memberCount, testPlanStats } = config;
 
   if (bugs.length === 0) {
     return `## ${sectionTitle}\n\n> 暂无数据\n\n---\n`;
@@ -281,12 +324,16 @@ async function renderSection(
   const closedCount = bugs.filter((b) => b.closed_time).length;
   const imgRef = (name: string) => `./images/${prefix}-${name}.png`;
 
-  // 优先使用按角色查询的人数；未配置（0）时不展示人均
   const devCount = memberCount ?? 0;
   const summaryParts = [`**缺陷总数**：${bugs.length} 个`];
   if (devCount > 0) {
     summaryParts.push(`**研发人数**：${devCount} 人`);
     summaryParts.push(`**人均 Bug 数**：${(bugs.length / devCount).toFixed(1)} 个`);
+  }
+  if (testPlanStats) {
+    summaryParts.push(`**总用例数**：${testPlanStats.caseNum} 个`);
+    summaryParts.push(`**测试通过率**：${testPlanStats.passRate}`);
+    summaryParts.push(`**缺陷修复率**：${testPlanStats.fixRate}`);
   }
 
   return [
@@ -441,6 +488,7 @@ interface GenerateReportParams {
   imagesDir: string;
   iterationNames: string;
   terminalMemberCount: Map<string, number>;
+  testPlanStats?: { caseNum: number; passRate: string; fixRate: string };
 }
 
 async function generateReport({
@@ -449,6 +497,7 @@ async function generateReport({
   imagesDir,
   iterationNames,
   terminalMemberCount,
+  testPlanStats,
 }: GenerateReportParams): Promise<void> {
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
 
@@ -500,7 +549,13 @@ async function generateReport({
     sections.push(
       await renderSection(
         filter,
-        { prefix: prefixes[i], sectionTitle: title, headingPrefix: heading, memberCount },
+        {
+          prefix: prefixes[i],
+          sectionTitle: title,
+          headingPrefix: heading,
+          memberCount,
+          testPlanStats: i === 0 ? testPlanStats : undefined,
+        },
         imagesDir
       )
     );
