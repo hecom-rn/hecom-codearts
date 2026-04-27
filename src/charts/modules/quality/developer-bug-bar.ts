@@ -7,7 +7,7 @@ import { IssueDetail } from '../../../types';
 export function buildDeveloperBugBarOption(bugs: IssueDetail[]): object {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const name = bug.developer?.nick_name ?? '未分配';
+    const name = bug.developer?.nick_name ?? '未填写';
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 

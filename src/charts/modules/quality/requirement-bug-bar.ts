@@ -7,7 +7,7 @@ import { IssueDetail } from '../../../types';
 export function buildRequirementBugBarOption(bugs: IssueDetail[]): object {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const name = bug.parent_issue?.name ?? '无父工作项';
+    const name = bug.parent_issue?.name ?? '未填写';
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 

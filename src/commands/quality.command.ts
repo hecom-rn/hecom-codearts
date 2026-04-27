@@ -45,7 +45,7 @@ function filterByDesignDefect(bugs: IssueDetail[]): IssueDetail[] {
 function getTopRequirement(bugs: IssueDetail[]): string | null {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const name = bug.parent_issue?.name ?? '无父工作项';
+    const name = bug.parent_issue?.name ?? '未填写';
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   if (counts.size === 0) return null;
@@ -200,7 +200,7 @@ function calcDefectAnalysisTable(
 function calcRequirementBugTable(bugs: IssueDetail[]): Array<{ name: string; count: number }> {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const name = bug.parent_issue?.name ?? '无父工作项';
+    const name = bug.parent_issue?.name ?? '未填写';
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   return Array.from(counts.entries())
@@ -240,7 +240,7 @@ function calcFixDurationTable(
 function calcDeveloperBugTable(bugs: IssueDetail[]): Array<{ name: string; count: number }> {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const name = bug.developer?.nick_name ?? '未分配';
+    const name = bug.developer?.nick_name ?? '未填写';
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   return Array.from(counts.entries())
