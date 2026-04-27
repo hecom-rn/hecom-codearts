@@ -89,7 +89,7 @@ const CONFIG_GROUPS = [
   },
   {
     title: '项目配置',
-    keys: [ConfigKey.CODEARTS_BASE_URL, ConfigKey.PROJECT_ID, ConfigKey.ROLE_ID],
+    keys: [ConfigKey.PROJECT_ID, ConfigKey.ROLE_ID],
   },
 ];
 
@@ -195,9 +195,8 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
   const domain = globalConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN];
   const iamEndpoint = globalConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT];
   const region = globalConfig[ConfigKey.HUAWEI_CLOUD_REGION];
-  const endpoint = globalConfig[ConfigKey.CODEARTS_BASE_URL];
 
-  if (!username || !password || !domain || !iamEndpoint || !region || !endpoint) {
+  if (!username || !password || !domain || !iamEndpoint || !region) {
     throw new Error('缺少华为云认证信息，请先运行 `npx @hecom/codearts config` 创建配置');
   }
 
@@ -210,7 +209,6 @@ export function loadConfig(cliOptions: CliOptions = {}): LoadedConfig {
   const config: HuaweiCloudConfig = {
     iamEndpoint,
     region,
-    endpoint,
     username,
     password,
     domainName: domain,

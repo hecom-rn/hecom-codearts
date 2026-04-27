@@ -9,7 +9,6 @@ export interface ApiConfig {
 export interface HuaweiCloudConfig {
   iamEndpoint: string;
   region: string;
-  endpoint: string;
   username: string;
   password: string;
   domainName: string;
@@ -740,7 +739,6 @@ export enum ConfigKey {
   HUAWEI_CLOUD_USERNAME = 'HUAWEI_CLOUD_USERNAME',
   HUAWEI_CLOUD_PASSWORD = 'HUAWEI_CLOUD_PASSWORD',
   HUAWEI_CLOUD_DOMAIN = 'HUAWEI_CLOUD_DOMAIN',
-  CODEARTS_BASE_URL = 'CODEARTS_BASE_URL',
   PROJECT_ID = 'PROJECT_ID',
 
   // 可变配置（可以通过命令行参数覆盖）
@@ -758,12 +756,66 @@ export type ConfigMap = {
   [ConfigKey.HUAWEI_CLOUD_USERNAME]: string;
   [ConfigKey.HUAWEI_CLOUD_PASSWORD]: string;
   [ConfigKey.HUAWEI_CLOUD_DOMAIN]: string;
-  [ConfigKey.CODEARTS_BASE_URL]: string;
   [ConfigKey.PROJECT_ID]: string;
   [ConfigKey.ROLE_ID]: string;
   [ConfigKey.DEVELOPMENT_END]: string;
   [ConfigKey.TERMINAL_TYPE]: string;
 };
+
+export interface TestPlanQueryRequest {
+  name?: string;
+  project_uuid: string;
+}
+
+export interface TestPlanDesign {
+  issue_num: number;
+  issue_cover_num: number;
+  case_num: number;
+}
+
+export interface TestPlanExecute {
+  execute_case_num: number;
+  defect_num: number;
+  completed_defect_num: number;
+  case_success_rate: string;
+  case_execution_rate: string;
+}
+
+export interface TestPlanReport {
+  case_success_rate: string;
+  case_complete_rate: string;
+  defect_num: number;
+  completed_defect_num: number;
+  report_num: number;
+}
+
+export interface TestPlanItem {
+  uri: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  plan_start_date: string;
+  plan_end_date: string;
+  current_stage: string;
+  is_expired: string;
+  design: TestPlanDesign;
+  execute: TestPlanExecute;
+  report: TestPlanReport;
+  project_uuid: string;
+  service_name: string;
+}
+
+export interface TestPlanQueryResult {
+  total: number;
+  value: TestPlanItem[];
+  page_size: number;
+  page_no: number;
+}
+
+export interface TestPlanQueryResponse {
+  result: TestPlanQueryResult;
+  status: string;
+}
 
 /**
  * 输出格式类型
