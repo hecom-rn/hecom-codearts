@@ -237,7 +237,6 @@ export async function configCommand(): Promise<void> {
   let iamAnswers = {
     iamEndpoint: '',
     region: '',
-    codeartsUrl: '',
     domain: '',
     username: '',
     password: '',
@@ -256,13 +255,6 @@ export async function configCommand(): Promise<void> {
         message: '华为云区域:',
         default: existingConfig[ConfigKey.HUAWEI_CLOUD_REGION] || 'cn-north-4',
         validate: (inputValue: string) => (inputValue.trim() ? true : '华为云区域不能为空'),
-      }),
-      codeartsUrl: await input({
-        message: 'CodeArts API 地址:',
-        default:
-          existingConfig[ConfigKey.CODEARTS_BASE_URL] ||
-          'https://projectman-ext.cn-north-4.myhuaweicloud.cn',
-        validate: (inputValue: string) => (inputValue.trim() ? true : 'CodeArts API 地址不能为空'),
       }),
       domain: await input({
         message: '租户名/原华为云账号:',
@@ -298,7 +290,6 @@ export async function configCommand(): Promise<void> {
     businessService = new BusinessService({
       iamEndpoint: iamAnswers.iamEndpoint,
       region: iamAnswers.region,
-      endpoint: iamAnswers.codeartsUrl,
       username: iamAnswers.username,
       password: iamAnswers.password,
       domainName: iamAnswers.domain,
@@ -394,7 +385,6 @@ export async function configCommand(): Promise<void> {
   const finalConfig: Partial<ConfigMap> = {
     [ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]: iamAnswers.iamEndpoint,
     [ConfigKey.HUAWEI_CLOUD_REGION]: iamAnswers.region,
-    [ConfigKey.CODEARTS_BASE_URL]: iamAnswers.codeartsUrl,
     [ConfigKey.HUAWEI_CLOUD_DOMAIN]: iamAnswers.domain,
     [ConfigKey.HUAWEI_CLOUD_USERNAME]: iamAnswers.username,
     [ConfigKey.HUAWEI_CLOUD_PASSWORD]: iamAnswers.password,
@@ -442,7 +432,6 @@ export async function updateProjectConfigCommand(configKey: ConfigKey): Promise<
   const businessService = new BusinessService({
     iamEndpoint: existingConfig[ConfigKey.HUAWEI_CLOUD_IAM_ENDPOINT]!,
     region: existingConfig[ConfigKey.HUAWEI_CLOUD_REGION]!,
-    endpoint: existingConfig[ConfigKey.CODEARTS_BASE_URL]!,
     username: existingConfig[ConfigKey.HUAWEI_CLOUD_USERNAME]!,
     password: existingConfig[ConfigKey.HUAWEI_CLOUD_PASSWORD]!,
     domainName: existingConfig[ConfigKey.HUAWEI_CLOUD_DOMAIN]!,
@@ -504,7 +493,6 @@ export async function showConfigCommand(): Promise<void> {
   logger.info();
   logger.info(pc.cyanBright('【CodeArts 配置】'));
   const codeartsKeys: ConfigKey[] = [
-    ConfigKey.CODEARTS_BASE_URL,
     ConfigKey.PROJECT_ID,
     ConfigKey.ROLE_ID,
     ConfigKey.DEVELOPMENT_END,
@@ -526,7 +514,6 @@ function formatKeyName(key: ConfigKey): string {
     [ConfigKey.HUAWEI_CLOUD_USERNAME]: 'IAM 用户名',
     [ConfigKey.HUAWEI_CLOUD_PASSWORD]: 'IAM 密码',
     [ConfigKey.HUAWEI_CLOUD_DOMAIN]: '华为云账号名',
-    [ConfigKey.CODEARTS_BASE_URL]: 'CodeArts API 地址',
     [ConfigKey.PROJECT_ID]: '项目 ID',
     [ConfigKey.ROLE_ID]: '角色 ID',
     [ConfigKey.DEVELOPMENT_END]: '开发端',
