@@ -14,6 +14,7 @@ import {
   IterationStatus,
   ProjectMember,
   ProjectRole,
+  TestPlanItem,
   TypeWorkHourStats,
   UserAllWorkHourStats,
   UserWorkHourStats,
@@ -21,10 +22,9 @@ import {
   WorkHour,
   WorkHourStats,
   WorkProgressStats,
-  TestPlanItem,
 } from '../types';
-import { ApiService } from './api.service';
 import { logger } from '../utils/logger';
+import { ApiService } from './api.service';
 
 /**
  * 业务服务类
@@ -40,22 +40,41 @@ export class BusinessService {
   // 业务操作方法将在后续添加
 
   /**
-   * 通过角色ID获取项目成员
+   * 获取项目成员列表，可选按角色ID过滤
    * @param projectId 项目ID
-   * @param roleIds 角色ID列表
-   * @returns 指定角色的成员列表
+   * @param roleIds 可选的角色ID列表，若提供则只返回匹配角色的成员
+   * @returns 项目成员列表（分页获取全量）
    */
-  async getMembersByRoleIds(projectId: string, roleIds: number[]): Promise<ProjectMember[]> {
-    const membersResponse = await this.apiService.getMembers(projectId);
+  async getMembers(projectId: string, roleIds?: number[]): Promise<ProjectMember[]> {
+    const allMembers: ProjectMember[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
 
-    if (!membersResponse.success) {
-      throw new Error(`获取成员列表失败: ${membersResponse.error || '未知错误'}`);
+    while (hasMore) {
+      const membersResponse = await this.apiService.getMembers(projectId, {
+        limit: pageSize,
+        offset,
+      });
+
+      if (!membersResponse.success) {
+        throw new Error(`获取成员列表失败: ${membersResponse.error || '未知错误'}`);
+      }
+
+      const members = membersResponse.data?.members || [];
+      allMembers.push(...members);
+
+      const total = membersResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
     }
 
-    const allMembers = membersResponse.data?.members || [];
-    const roleIdsSet = new Set(roleIds);
+    if (roleIds && roleIds.length > 0) {
+      const roleIdsSet = new Set(roleIds);
+      return allMembers.filter((member) => roleIdsSet.has(member.role_id));
+    }
 
-    return allMembers.filter((member) => roleIdsSet.has(member.role_id));
+    return allMembers;
   }
 
   /**

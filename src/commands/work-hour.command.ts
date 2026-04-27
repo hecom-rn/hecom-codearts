@@ -35,7 +35,7 @@ async function queryWorkHourReportData(
   roleIds: number[],
   targetYear: string
 ): Promise<ConsoleTotal<UserStats>> {
-  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+  const members = await businessService.getMembers(projectId, roleIds);
 
   const userIds = members.map((member) => member.user_id);
 

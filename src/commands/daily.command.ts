@@ -72,7 +72,7 @@ async function queryDailyUserStats(
   roleIds: number[],
   targetDate: string
 ): Promise<ConsoleTotal<UserStats>> {
-  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+  const members = await businessService.getMembers(projectId, roleIds);
   const userIds = members.map((member) => member.user_id);
   const dailyStats = await businessService.getDailyWorkHourStats(projectId, userIds, targetDate);
 

@@ -51,7 +51,7 @@ async function queryBugReportData(
   const roleNames = new Set<string>();
   const targetMemberIds = new Set<number>();
 
-  const members = await businessService.getMembersByRoleIds(projectId, roleIds);
+  const members = await businessService.getMembers(projectId, roleIds);
 
   members.forEach((member) => {
     targetMemberIds.add(member.user_num_id);
