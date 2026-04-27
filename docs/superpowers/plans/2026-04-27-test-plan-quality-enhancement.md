@@ -441,15 +441,26 @@
 
 - [ ] **Step 4: 在 `generateReport` 中为第一部分传入 `testPlanStats`**
 
-  在 `terminalSections` 数组中，第一个元素（`一、缺陷总览`）的渲染调用处，增加 `testPlanStats` 传递：
+  在 `generateReport` 函数中，`terminalSections` 数组定义不变，但在调用 `renderSection` 的循环处（约第 497-506 行）改为：
 
   ```typescript
-  // 第一个 section（一、缺陷总览）单独处理，传入 testPlanStats
   const overviewTestPlanStats =
     testPlanTotalCaseNum !== null ? { caseNum: testPlanTotalCaseNum } : undefined;
-  ```
 
-  在 `renderSection` 调用中将 `testPlanStats: overviewTestPlanStats` 加入 `SectionConfig`（仅第一个 section）。
+  for (let i = 0; i < terminalSections.length; i++) {
+    const { title, heading, filter, terminalType } = terminalSections[i];
+    const memberCount = terminalType ? terminalMemberCount.get(terminalType) : undefined;
+    // 仅第一个 section（一、缺陷总览，i === 0）传入 testPlanStats
+    const testPlanStats = i === 0 ? overviewTestPlanStats : undefined;
+    sections.push(
+      await renderSection(
+        filter,
+        { prefix: prefixes[i], sectionTitle: title, headingPrefix: heading, memberCount, testPlanStats },
+        imagesDir
+      )
+    );
+  }
+  ```
 
 - [ ] **Step 5: 在 `qualityCommand` 中查询测试计划并计算总用例数**
 
@@ -499,6 +510,7 @@
 
 **Files:**
 - Modify: `src/commands/quality.command.ts`
+- Modify: `src/services/business.service.ts`
 
 - [ ] **Step 1: 新增 `getCustomerFeedbackBugs` 业务方法（`business.service.ts`）**
 
@@ -604,8 +616,6 @@
 
 - [ ] **Step 4: 在 `qualityCommand` 中查询客户反馈数据**
 
-- [ ] **Step 4: 在 `qualityCommand` 中查询客户反馈数据**
-
   在成员数据加载完成后、准备输出目录之前，新增查询：
 
   ```typescript
@@ -620,13 +630,7 @@
 
   并将 `customerFeedbackBugs` 和 `projectId` 传入 `generateReport`。
 
-- [ ] **Step 5: 更新 `generateReport` 函数签名和调用**
-
-  在 `generateReport` 中：
-  - 参数增加 `customerFeedbackBugs: IssueItem[]` 和 `projectId: string`
-  - 末尾追加 `sections.push(renderSection8CustomerFeedback(customerFeedbackBugs, projectId));`
-
-- [ ] **Step 6: 编译检查**
+- [ ] **Step 5: 编译检查**
 
   ```bash
   npm run build 2>&1
@@ -634,7 +638,7 @@
 
   预期：编译成功，无错误。
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 6: 提交**
 
   ```bash
   git add src/commands/quality.command.ts src/services/business.service.ts
