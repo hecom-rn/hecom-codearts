@@ -156,12 +156,21 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
   }
   planSpinner.succeed('测试计划数据加载完成');
 
-  // 7. 准备输出目录
+  // 7. 查询客户反馈缺陷
+  const feedbackSpinner = ora('正在查询客户反馈缺陷...').start();
+  const selectedIterationNames = selectedIterations.map((it) => it.name);
+  const customerFeedbackBugs = await businessService.getCustomerFeedbackBugs(
+    projectId,
+    selectedIterationNames
+  );
+  feedbackSpinner.succeed(`已加载 ${customerFeedbackBugs.length} 个客户反馈缺陷`);
+
+  // 8. 准备输出目录
   const outputDir = path.resolve(cliOptions.outputDir ?? './quality-report');
   const imagesDir = path.join(outputDir, 'images');
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  // 8. 生成报告（图表 + Markdown）
+  // 9. 生成报告（图表 + Markdown）
   await generateReport({
     allBugs,
     outputDir,
@@ -169,6 +178,8 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
     iterationNames,
     terminalMemberCount,
     testPlanStats,
+    customerFeedbackBugs,
+    projectId,
   });
 
   logger.info(`质量分析报告已生成：${path.join(outputDir, 'quality-report.md')}`);
@@ -489,6 +500,8 @@ interface GenerateReportParams {
   iterationNames: string;
   terminalMemberCount: Map<string, number>;
   testPlanStats?: { caseNum: number; passRate: string; fixRate: string };
+  customerFeedbackBugs: IssueItem[];
+  projectId: string;
 }
 
 async function generateReport({
@@ -498,6 +511,8 @@ async function generateReport({
   iterationNames,
   terminalMemberCount,
   testPlanStats,
+  customerFeedbackBugs,
+  projectId,
 }: GenerateReportParams): Promise<void> {
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
 
@@ -567,8 +582,42 @@ async function generateReport({
   // 第七部分：设计缺陷率
   sections.push(await renderSection7(allBugs, imagesDir));
 
+  // 第八部分：客户反馈缺陷
+  sections.push(renderSection8CustomerFeedback(customerFeedbackBugs, projectId));
+
   const markdown = sections.join('');
   fs.writeFileSync(path.join(outputDir, 'quality-report.md'), markdown, 'utf-8');
 
   spinner.succeed('质量分析报告生成完成');
+}
+
+function renderSection8CustomerFeedback(bugs: IssueItem[], projectId: string): string {
+  if (bugs.length === 0) {
+    return `## 八、客户反馈缺陷\n\n> 暂无数据\n\n---\n`;
+  }
+
+  const header = `| 编号 | 标题 | 处理人 | 状态 | 父需求 |`;
+  const separator = `| --- | --- | --- | --- | --- |`;
+  const rows = bugs.map((b) => {
+    const title = `[${b.name}](${issueLink(projectId, b.id)})`;
+    const assignee = b.assigned_user?.name ?? '-';
+    const status = b.status?.name ?? '-';
+    const parent = b.parent_issue?.id
+      ? `[${b.parent_issue.name ?? b.parent_issue.id}](${issueLink(projectId, b.parent_issue.id)})`
+      : '-';
+    return `| ${b.id} | ${title} | ${assignee} | ${status} | ${parent} |`;
+  });
+
+  return [
+    '## 八、客户反馈缺陷',
+    '',
+    `**客户反馈缺陷总数**：${bugs.length} 个`,
+    '',
+    header,
+    separator,
+    ...rows,
+    '',
+    '---',
+    '',
+  ].join('\n');
 }
