@@ -21,6 +21,7 @@ import {
   WorkHour,
   WorkHourStats,
   WorkProgressStats,
+  TestPlanItem,
 } from '../types';
 import { ApiService } from './api.service';
 import { logger } from '../utils/logger';
@@ -949,5 +950,61 @@ export class BusinessService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * 按迭代名称查找测试计划，返回第一个精确匹配项
+   * @param projectId 项目 UUID
+   * @param iterationName 迭代名称（精确匹配）
+   */
+  async getTestPlanByIterationName(
+    projectId: string,
+    iterationName: string
+  ): Promise<TestPlanItem | null> {
+    const response = await this.apiService.queryTestPlans(projectId, iterationName);
+    if (!response.success || !response.data) {
+      return null;
+    }
+    const plans = response.data.result?.value ?? [];
+    return plans.find((p) => p.name === iterationName) ?? null;
+  }
+
+  /**
+   * 查询整个项目中指定迭代名称内的客户反馈 Bug 列表
+   * @param projectId 项目 UUID
+   * @param iterationNames 迭代名称列表
+   */
+  async getCustomerFeedbackBugs(
+    projectId: string,
+    iterationNames: string[]
+  ): Promise<IssueItem[]> {
+    const seenIds = new Set<number>();
+    const results: IssueItem[] = [];
+    for (const iterationName of iterationNames) {
+      let offset = 0;
+      const limit = 100;
+      while (true) {
+        const response = await this.apiService.getIssues(projectId, {
+          tracker_ids: [IssueTrackerId.BUG],
+          custom_fields: [
+            { custom_field: CustomFieldId.DEFECT_TYPE, value: '客户反馈' },
+            { custom_field: CustomFieldId.INTRODUCTION_PHASE, value: iterationName },
+          ],
+          offset,
+          limit,
+        });
+        if (!response.success || !response.data?.issues) break;
+        const issues = response.data.issues;
+        for (const issue of issues) {
+          if (!seenIds.has(issue.id)) {
+            seenIds.add(issue.id);
+            results.push(issue);
+          }
+        }
+        if (issues.length < limit) break;
+        offset += limit;
+      }
+    }
+    return results;
   }
 }
