@@ -8,17 +8,10 @@ import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duratio
 import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
 import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
 import { BusinessService } from '../services/business.service';
-import {
-  CustomFieldId,
-  IssueDetail,
-  IssueItem,
-  IssueStatusId,
-  IssueTrackerId,
-  TerminalType,
-} from '../types';
+import { CustomFieldId, IssueDetail, IssueItem, IssueStatusId, ProjectMember, TerminalType } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
-import { globalTheme } from '../utils/inquirer-theme';
 import { issueLink } from '../utils/console';
+import { globalTheme } from '../utils/inquirer-theme';
 import { logger } from '../utils/logger';
 import { matchIterations } from './rebug.command';
 
@@ -34,7 +27,7 @@ const TERMINAL_ROLE_MAP: Record<string, number[]> = {
 
 // ---- 辅助函数 ----
 
-function getCustomField(bug: IssueDetail, fieldId: CustomFieldId): string | undefined {
+function getCustomField(bug: IssueItem, fieldId: CustomFieldId): string | undefined {
   return (bug.new_custom_fields || []).find((f) => f.custom_field === fieldId)?.value;
 }
 
@@ -116,16 +109,18 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
   const allBugs = await businessService.getIssueDetails(projectId, issueIds, 10);
   bugSpinner.succeed(`已加载 ${allBugs.length} 个 Bug`);
 
-  // 4. 查询各终端研发人数（按角色ID）
+  // 4. 查询各终端研发人数（先拉全量成员，再按角色过滤统计人数）
   const memberSpinner = ora('正在查询研发人员数据...').start();
+  const allMembers = await businessService.getMembers(projectId);
   const terminalMemberCount = new Map<string, number>();
   for (const [terminalType, roleIds] of Object.entries(TERMINAL_ROLE_MAP)) {
     if (roleIds.length === 0) {
       terminalMemberCount.set(terminalType, 0);
       continue;
     }
-    const members = await businessService.getMembersByRoleIds(projectId, roleIds);
-    terminalMemberCount.set(terminalType, members.length);
+    const roleIdsSet = new Set(roleIds);
+    const count = allMembers.filter((m) => roleIdsSet.has(m.role_id)).length;
+    terminalMemberCount.set(terminalType, count);
   }
   memberSpinner.succeed('研发人员数据加载完成');
 
@@ -179,6 +174,7 @@ export async function qualityCommand(cliOptions: QualityCommandOptions): Promise
     terminalMemberCount,
     testPlanStats,
     customerFeedbackBugs,
+    allMembers,
     projectId,
   });
 
@@ -501,6 +497,7 @@ interface GenerateReportParams {
   terminalMemberCount: Map<string, number>;
   testPlanStats?: { caseNum: number; passRate: string; fixRate: string };
   customerFeedbackBugs: IssueItem[];
+  allMembers: ProjectMember[];
   projectId: string;
 }
 
@@ -512,6 +509,7 @@ async function generateReport({
   terminalMemberCount,
   testPlanStats,
   customerFeedbackBugs,
+  allMembers,
   projectId,
 }: GenerateReportParams): Promise<void> {
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
@@ -583,7 +581,7 @@ async function generateReport({
   sections.push(await renderSection7(allBugs, imagesDir));
 
   // 第八部分：客户反馈缺陷
-  sections.push(renderSection8CustomerFeedback(customerFeedbackBugs, projectId));
+  sections.push(renderSection8CustomerFeedback(customerFeedbackBugs, projectId, allMembers));
 
   const markdown = sections.join('');
   fs.writeFileSync(path.join(outputDir, 'quality-report.md'), markdown, 'utf-8');
@@ -591,21 +589,33 @@ async function generateReport({
   spinner.succeed('质量分析报告生成完成');
 }
 
-function renderSection8CustomerFeedback(bugs: IssueItem[], projectId: string): string {
+function renderSection8CustomerFeedback(
+  bugs: IssueItem[],
+  projectId: string,
+  allMembers: ProjectMember[]
+): string {
   if (bugs.length === 0) {
     return `## 八、客户反馈缺陷\n\n> 暂无数据\n\n---\n`;
   }
 
-  const header = `| 编号 | 标题 | 处理人 | 状态 | 父需求 |`;
-  const separator = `| --- | --- | --- | --- | --- |`;
+  // 构建成员 user_num_id → nick_name 映射，用于 custom_field26 value 转换
+  const memberIdToName = new Map<string, string>();
+  for (const m of allMembers) {
+    memberIdToName.set(String(m.user_num_id), m.nick_name);
+  }
+
+  const header = `| 编号 | 标题 | 研发人员 | 测试人员 | 状态 | 父需求 |`;
+  const separator = `| --- | --- | --- | --- | --- | --- |`;
   const rows = bugs.map((b) => {
     const title = `[${b.name}](${issueLink(projectId, b.id)})`;
-    const assignee = b.assigned_user?.name ?? '-';
+    const testerId = getCustomField(b, CustomFieldId.TESTER);
+    const tester = testerId ? (memberIdToName.get(testerId) ?? testerId) : '-';
+    const developer = b.developer?.nick_name ?? '-';
     const status = b.status?.name ?? '-';
     const parent = b.parent_issue?.id
       ? `[${b.parent_issue.name ?? b.parent_issue.id}](${issueLink(projectId, b.parent_issue.id)})`
       : '-';
-    return `| ${b.id} | ${title} | ${assignee} | ${status} | ${parent} |`;
+    return `| ${b.id} | ${title} | ${developer} | ${tester} | ${status} | ${parent} |`;
   });
 
   return [
