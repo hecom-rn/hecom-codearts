@@ -974,16 +974,14 @@ export class BusinessService {
    * @param projectId 项目 UUID
    * @param iterationNames 迭代名称列表
    */
-  async getCustomerFeedbackBugs(
-    projectId: string,
-    iterationNames: string[]
-  ): Promise<IssueItem[]> {
+  async getCustomerFeedbackBugs(projectId: string, iterationNames: string[]): Promise<IssueItem[]> {
     const seenIds = new Set<number>();
     const results: IssueItem[] = [];
     for (const iterationName of iterationNames) {
       let offset = 0;
       const limit = 100;
-      while (true) {
+      let hasMore = true;
+      while (hasMore) {
         const response = await this.apiService.getIssues(projectId, {
           tracker_ids: [IssueTrackerId.BUG],
           custom_fields: [
@@ -1001,7 +999,7 @@ export class BusinessService {
             results.push(issue);
           }
         }
-        if (issues.length < limit) break;
+        hasMore = issues.length >= limit;
         offset += limit;
       }
     }
