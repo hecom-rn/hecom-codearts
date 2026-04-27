@@ -1,4 +1,4 @@
-import { IssueDetail, CustomFieldId } from '../../../types';
+import { CustomFieldId, IssueDetail } from '../../../types';
 
 /**
  * 缺陷技术分析饼图（环形）
@@ -10,7 +10,7 @@ export function buildDefectAnalysisPieOption(bugs: IssueDetail[]): object {
     const value =
       (bug.new_custom_fields || []).find(
         (f) => f.custom_field === CustomFieldId.DEFECT_TECHNICAL_ANALYSIS
-      )?.value ?? '未填写';
+      )?.value || '未填写';
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
 

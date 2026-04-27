@@ -8,7 +8,14 @@ import { buildFixDurationBarOption } from '../charts/modules/quality/fix-duratio
 import { buildRequirementBugBarOption } from '../charts/modules/quality/requirement-bug-bar';
 import { ChartRenderTask, renderChartsToPng } from '../charts/png-renderer';
 import { BusinessService } from '../services/business.service';
-import { CustomFieldId, IssueDetail, IssueItem, IssueStatusId, ProjectMember, TerminalType } from '../types';
+import {
+  CustomFieldId,
+  IssueDetail,
+  IssueItem,
+  IssueStatusId,
+  ProjectMember,
+  TerminalType,
+} from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
 import { globalTheme } from '../utils/inquirer-theme';
@@ -188,7 +195,7 @@ function calcDefectAnalysisTable(
 ): Array<{ name: string; count: number; ratio: string }> {
   const counts = new Map<string, number>();
   for (const bug of bugs) {
-    const v = getCustomField(bug, CustomFieldId.DEFECT_TECHNICAL_ANALYSIS) ?? '未填写';
+    const v = getCustomField(bug, CustomFieldId.DEFECT_TECHNICAL_ANALYSIS) || '未填写';
     counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const total = bugs.length;
