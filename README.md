@@ -7,46 +7,74 @@
 ### 1. 初始化
 
 ```bash
-npx @hecom/codearts
+npm install -g @hecom/codearts
+codearts config
 ```
 
-自动运行交互式配置向导，根据提示输入必要的配置项。配置文件将保存在 `~/.hecom-codearts/config.env`，配置一次后全局可用。
+运行交互式配置向导，根据提示输入必要的配置项。配置文件将保存在 `~/.hecom-codearts/config.env`，配置一次后全局可用。
 
 ### 2. 使用
 
 ```bash
 # 查看帮助
-npx @hecom/codearts --help
+codearts --help
 
 # 生成今日工时日报
-npx @hecom/codearts daily
+codearts daily
+
+# 生成指定日期工时日报并显示总结报告
+codearts daily 2026-03-27 --report
 
 # 生成当年工时统计
-npx @hecom/codearts work-hour
+codearts work-hour
 
-# 按迭代统计产品缺陷率
-npx @hecom/codearts bug-rate "迭代1,迭代2"
+# 生成指定年份工时统计
+codearts work-hour 2026
+
+# 统计产品缺陷率
+codearts bug-rate
+
+# 交互式修复当前用户的 Bug
+codearts fix
+
+# 生成质量分析报告
+codearts quality --iteration "迭代1,迭代2"
+
+# 生成 Bug 多维度可视化分析报告
+codearts rebug chart --iteration "迭代1,迭代2" --terminal "移动端"
+
+# 查看未添加标签的 Bug 列表
+codearts rebug no-tag --iteration "迭代1,迭代2" --developer "张三"
+
+# 为指定版本的 Story 拆解 Task
+codearts story all "版本1"
+codearts story single "版本1"
 ```
 
 ### 3. 更新配置
 
 ```bash
 # 更新配置文件
-npx @hecom/codearts config
+codearts config
 
 # 单独更新角色配置
-npx @hecom/codearts config role
+codearts config role-id
+
+# 单独更新开发端配置
+codearts config development-end
+
+# 单独更新终端类型配置
+codearts config terminal-type
 
 # 查看当前配置
-npx @hecom/codearts config show
+codearts config show
 ```
 
 ### 4. 升级
 
 ```bash
 # 更新最新版本
-npx @hecom/codearts@latest
-
+codearts upgrade
 ```
 
 ---
