@@ -14,6 +14,7 @@ import { fixCommand } from '../commands/fix.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { qualityCommand } from '../commands/quality.command';
+import { upgradeCommand } from '../commands/upgrade.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
 import { logger } from '../utils/logger';
@@ -119,6 +120,19 @@ program
       });
     } catch (error: unknown) {
       logger.error(`质量分析命令执行失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// upgrade 命令
+program
+  .command('upgrade')
+  .description('升级 @hecom/codearts 到最新版本')
+  .action(async () => {
+    try {
+      await upgradeCommand();
+    } catch (error: unknown) {
+      logger.error(`升级命令执行失败: ${String(error)}`);
       process.exit(1);
     }
   });
