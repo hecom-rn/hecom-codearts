@@ -6,3 +6,4 @@ export { fixCommand } from './fix.command';
 export { rebugChartCommand, rebugNoTagCommand } from './rebug.command';
 export { qualityCommand } from './quality.command';
 export { upgradeCommand } from './upgrade.command';
+export { stroyAllCommand, stroySingleCommand } from './stroy.command';

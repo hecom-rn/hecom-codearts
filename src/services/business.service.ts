@@ -3,6 +3,7 @@ import {
   BugFixData,
   CustomField,
   CustomFieldId,
+  CurrentUserInfo,
   HuaweiCloudConfig,
   IssueDetail,
   IssueItem,
@@ -38,6 +39,16 @@ export class BusinessService {
   }
 
   // 业务操作方法将在后续添加
+
+  async getCurrentUser(): Promise<CurrentUserInfo> {
+    const userInfoResponse = await this.apiService.showCurUserInfo();
+
+    if (!userInfoResponse.success || !userInfoResponse.data) {
+      throw new Error(`获取当前用户信息失败: ${userInfoResponse.error || '未知错误'}`);
+    }
+
+    return userInfoResponse.data;
+  }
 
   /**
    * 获取项目成员列表，可选按角色ID过滤
@@ -432,6 +443,87 @@ export class BusinessService {
     }
 
     return allStories;
+  }
+
+  async getStoriesByVersionAndDevelopmentEnd(
+    projectId: string,
+    version: string,
+    developmentEnd: string
+  ): Promise<IssueItem[]> {
+    const allStories: IssueItem[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const issuesResponse = await this.apiService.getIssues(projectId, {
+        tracker_ids: [IssueTrackerId.STORY],
+        custom_fields: [
+          {
+            custom_field: CustomFieldId.VERSION,
+            value: version,
+          },
+          {
+            custom_field: CustomFieldId.DEVELOPMENT_END,
+            value: developmentEnd,
+          },
+        ],
+        include_deleted: false,
+        limit: pageSize,
+        offset,
+      });
+
+      if (!issuesResponse.success) {
+        throw new Error(`获取Story列表失败: ${issuesResponse.error || '未知错误'}`);
+      }
+
+      const stories = issuesResponse.data?.issues || [];
+      allStories.push(...stories);
+
+      const total = issuesResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allStories;
+  }
+
+  async createStoryTask(
+    projectId: string,
+    story: IssueItem,
+    version: string,
+    developmentEnd: string,
+    assignedId?: number
+  ): Promise<void> {
+    const newCustomFields: IssueNewCustomField[] = [
+      {
+        custom_field: CustomFieldId.VERSION,
+        field_name: '版本',
+        value: version,
+      },
+      {
+        custom_field: CustomFieldId.DEVELOPMENT_END,
+        field_name: '开发端',
+        value: developmentEnd,
+      },
+    ];
+
+    const createData = {
+      name: `${story.name} - ${developmentEnd}`,
+      tracker_id: IssueTrackerId.TASK,
+      parent_issue_id: story.id,
+      iteration_id: story.iteration?.id || undefined,
+      assigned_id: assignedId,
+      new_custom_fields: newCustomFields,
+      priority_id: story.priority?.id || undefined,
+      domain_id: story.domain?.id || undefined,
+    };
+
+    const response = await this.apiService.createIssue(projectId, createData);
+
+    if (!response.success) {
+      throw new Error(`创建Task失败: ${response.error || '未知错误'}`);
+    }
   }
 
   /**

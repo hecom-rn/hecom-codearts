@@ -479,8 +479,11 @@ export class ApiService {
   /**
    * 创建工作项
    */
-  async createIssue(projectId: string, issueData: unknown): Promise<ApiResponse<unknown>> {
-    return this.request(`/v4/projects/${projectId}/issues`, {
+  async createIssue(
+    projectId: string,
+    issueData: UpdateIssueRequest
+  ): Promise<ApiResponse<unknown>> {
+    return this.request(`/v4/projects/${projectId}/issue`, {
       method: 'POST',
       data: issueData,
     });

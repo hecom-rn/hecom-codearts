@@ -11,10 +11,11 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
-import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
-import { workHourCommand } from '../commands/work-hour.command';
 import { qualityCommand } from '../commands/quality.command';
+import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
+import { stroyAllCommand, stroySingleCommand } from '../commands/stroy.command';
 import { upgradeCommand } from '../commands/upgrade.command';
+import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
 import { logger } from '../utils/logger';
@@ -135,6 +136,26 @@ program
       logger.error(`升级命令执行失败: ${String(error)}`);
       process.exit(1);
     }
+  });
+
+const stroyCmd = program.command('story').description('为指定版本的 Story 拆解 Task');
+
+stroyCmd
+  .command('all <version>')
+  .description('为没有拆解的 Story 创建 Task')
+  .action(async (version, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await stroyAllCommand(version, cliOptions);
+  });
+
+stroyCmd
+  .command('single <version>')
+  .description('交互式选择 Story 和处理人后创建子 Task')
+  .action(async (version, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    await stroySingleCommand(version, cliOptions);
   });
 
 // rebug 命令组
