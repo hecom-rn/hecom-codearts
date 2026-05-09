@@ -1,19 +1,39 @@
 import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import { showLogo } from '../utils/console';
 import { logger } from '../utils/logger';
 
 const PACKAGE_NAME = '@hecom/codearts';
+const METHOD = 'npm';
 
-export async function upgradeCommand(): Promise<void> {
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const args = ['install', '-g', `${PACKAGE_NAME}@latest`];
+function getPackageVersion(): string {
+  const packageJsonPath = path.join(__dirname, '../../package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version: string };
 
-  logger.info(`正在升级 ${PACKAGE_NAME} 到最新版本...`);
+  return packageJson.version;
+}
 
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(npmCommand, args, {
-      stdio: 'inherit',
+function getNpmCommand(): string {
+  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+}
+
+function runNpm(args: string[], stdio: 'pipe' | 'inherit' = 'pipe'): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(getNpmCommand(), args, {
+      stdio,
       shell: false,
     });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+
+    if (child.stdout) {
+      child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+    }
 
     child.on('error', (error: Error) => {
       reject(new Error(`启动 npm 失败: ${error.message}`));
@@ -21,13 +41,47 @@ export async function upgradeCommand(): Promise<void> {
 
     child.on('close', (code: number | null) => {
       if (code === 0) {
-        resolve();
+        resolve(Buffer.concat(stdout).toString('utf-8').trim());
         return;
       }
 
-      reject(new Error(`升级失败，npm 退出码: ${code ?? 'unknown'}`));
+      const errorMessage = Buffer.concat(stderr).toString('utf-8').trim();
+      reject(new Error(errorMessage || `npm 退出码: ${code ?? 'unknown'}`));
     });
   });
+}
 
-  logger.success(`${PACKAGE_NAME} 已升级到最新版本`);
+async function getLatestVersion(): Promise<string> {
+  return runNpm(['view', PACKAGE_NAME, 'version']);
+}
+
+function logUpgradeStart(): void {
+  showLogo();
+  logger.info('┌  Upgrade');
+  logger.info('│');
+  logger.info(`●  Using method: ${METHOD}`);
+  logger.info('│');
+}
+
+function logUpgradeEnd(): void {
+  logger.info('│');
+  logger.info('└  Done');
+}
+
+export async function upgradeCommand(): Promise<void> {
+  logUpgradeStart();
+
+  const currentVersion = getPackageVersion();
+  const latestVersion = await getLatestVersion();
+
+  if (currentVersion === latestVersion) {
+    logger.info(`▲  codearts upgrade skipped: ${currentVersion} is already installed`);
+    logUpgradeEnd();
+    return;
+  }
+
+  logger.info(`●  Installing ${PACKAGE_NAME}@${latestVersion}`);
+  await runNpm(['install', '-g', `${PACKAGE_NAME}@latest`]);
+  logger.success(`◆  codearts upgraded: ${currentVersion} to ${latestVersion}`);
+  logUpgradeEnd();
 }
