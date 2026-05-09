@@ -6,6 +6,7 @@ import {
   CustomFieldId,
   IssueItem,
   IssueItemV2,
+  IssueStatusId,
   IssueTrackerId,
   ProjectMember,
 } from '../types';
@@ -24,10 +25,113 @@ interface StoryTaskContext {
   storyTaskMap: Map<number, IssueItemV2[]>;
 }
 
-function validateVersion(version: string): void {
-  if (!/^\d{4}$/.test(version)) {
-    throw new Error('版本格式不正确，应为 4 位数字，例如 2605');
+function normalizeVersionValue(version: string): string {
+  return version.toLowerCase().replace(/[\s._\-()[\]【】]+/g, '');
+}
+
+function extractVersionDigits(version: string): string {
+  return version.replace(/\D/g, '');
+}
+
+function isSubsequence(input: string, target: string): boolean {
+  if (!input) {
+    return false;
   }
+
+  let targetIndex = 0;
+
+  for (const char of input) {
+    targetIndex = target.indexOf(char, targetIndex);
+    if (targetIndex === -1) {
+      return false;
+    }
+    targetIndex++;
+  }
+
+  return true;
+}
+
+function scoreVersionCandidate(input: string, candidate: string): number {
+  const normalizedInput = normalizeVersionValue(input);
+  const normalizedCandidate = normalizeVersionValue(candidate);
+  const inputDigits = extractVersionDigits(input);
+  const candidateDigits = extractVersionDigits(candidate);
+
+  if (!normalizedInput || !normalizedCandidate) {
+    return 0;
+  }
+
+  if (normalizedInput === normalizedCandidate) {
+    return 100;
+  }
+
+  if (inputDigits && inputDigits === candidateDigits) {
+    return 95;
+  }
+
+  if (
+    normalizedCandidate.includes(normalizedInput) ||
+    normalizedInput.includes(normalizedCandidate)
+  ) {
+    return 80;
+  }
+
+  if (inputDigits && candidateDigits) {
+    if (candidateDigits.includes(inputDigits) || inputDigits.includes(candidateDigits)) {
+      return 75;
+    }
+
+    const inputNumber = Number(inputDigits);
+    const candidateNumber = Number(candidateDigits);
+    if (Number.isSafeInteger(inputNumber) && Number.isSafeInteger(candidateNumber)) {
+      const diff = Math.abs(inputNumber - candidateNumber);
+      if (diff <= 20) {
+        return 60 - diff;
+      }
+    }
+  }
+
+  if (
+    isSubsequence(normalizedInput, normalizedCandidate) ||
+    isSubsequence(normalizedCandidate, normalizedInput)
+  ) {
+    return 50;
+  }
+
+  return 0;
+}
+
+function suggestVersionOptions(input: string, options: string[]): string[] {
+  return options
+    .map((option) => ({
+      option,
+      score: scoreVersionCandidate(input, option),
+    }))
+    .filter((item) => item.score >= 50)
+    .sort((a, b) => b.score - a.score || a.option.localeCompare(b.option, 'zh-CN'))
+    .slice(0, 5)
+    .map((item) => item.option);
+}
+
+async function resolveStoryVersion(
+  businessService: BusinessService,
+  projectId: string,
+  version: string
+): Promise<string> {
+  const optionsMap = await businessService.getCustomFieldOptions(projectId, [
+    CustomFieldId.VERSION,
+  ]);
+  const versionOptions = optionsMap[CustomFieldId.VERSION] || [];
+  const matchedVersion = versionOptions.find((option) => option === version);
+
+  if (matchedVersion) {
+    return matchedVersion;
+  }
+
+  const suggestions = suggestVersionOptions(version, versionOptions);
+  const suggestionMessage = suggestions.length > 0 ? `，可能的版本：${suggestions.join('、')}` : '';
+
+  throw new Error(`版本 ${version} 不存在${suggestionMessage}`);
 }
 
 function getDevelopmentEnd(): string {
@@ -43,25 +147,31 @@ function getDevelopmentEnd(): string {
 function isCurrentDevelopmentTask(issue: IssueItemV2, developmentEnd: string): boolean {
   return (
     issue.tracker?.id === IssueTrackerId.TASK &&
+    isActiveIssueStatus(issue.status?.id) &&
     issue.customValueNew?.[CustomFieldId.DEVELOPMENT_END] === developmentEnd
   );
+}
+
+function isActiveIssueStatus(statusId?: number): boolean {
+  return statusId !== IssueStatusId.REJECTED && statusId !== IssueStatusId.CLOSED;
 }
 
 async function loadStoryTaskContext(
   version: string,
   cliOptions: CliOptions = {}
 ): Promise<StoryTaskContext> {
-  validateVersion(version);
-
   const { projectId, roleIds, config } = loadConfig(cliOptions);
   const developmentEnd = getDevelopmentEnd();
   const businessService = new BusinessService(config);
+  const resolvedVersion = await resolveStoryVersion(businessService, projectId, version);
 
-  const stories = await businessService.getStoriesByVersionAndDevelopmentEnd(
-    projectId,
-    version,
-    developmentEnd
-  );
+  const stories = (
+    await businessService.getStoriesByVersionAndDevelopmentEnd(
+      projectId,
+      resolvedVersion,
+      developmentEnd
+    )
+  ).filter((story) => isActiveIssueStatus(story.status?.id));
   const storyTaskMap = new Map<number, IssueItemV2[]>();
 
   for (const story of stories) {
@@ -76,7 +186,7 @@ async function loadStoryTaskContext(
     businessService,
     projectId,
     roleIds,
-    version,
+    version: resolvedVersion,
     developmentEnd,
     stories,
     storyTaskMap,
