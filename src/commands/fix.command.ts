@@ -1,4 +1,4 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { checkbox, confirm, input, select } from '@inquirer/prompts';
 import ora from 'ora';
 import { BusinessService } from '../services/business.service';
 import { BugFixData, ConfigKey, CustomFieldId, IssueItem } from '../types';
@@ -46,15 +46,15 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       return;
     }
 
-    // Step 4: 让用户选择 bug
-    const selectedBug = await selectBug(bugList);
-    if (!selectedBug) {
+    // Step 4: 让用户选择 bug（支持多选）
+    const selectedBugs = await selectBugs(bugList);
+    if (!selectedBugs || selectedBugs.length === 0) {
       logger.info('操作取消');
       return;
     }
 
-    // Step 5: 检查是否为客户反馈 bug
-    const isCustomerFeedback = checkIsCustomerFeedback(selectedBug);
+    // Step 5: 检查是否有客户反馈 bug
+    const hasCustomerFeedback = selectedBugs.some(checkIsCustomerFeedback);
 
     // Step 6: 读取配置的开发端和终端类型
     const globalConfig = getConfig();
@@ -84,11 +84,11 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
 
     // 6.2: 填写问题原因及解决办法
     const problemReason = await input({
-      message: isCustomerFeedback
+      message: hasCustomerFeedback
         ? '请输入问题原因及解决办法（必填）'
         : '请输入问题原因及解决办法（可选，留空跳过）',
       validate: (value) => {
-        if (isCustomerFeedback && !value.trim()) {
+        if (hasCustomerFeedback && !value.trim()) {
           return '问题原因及解决办法不能为空';
         }
         return true;
@@ -108,7 +108,7 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       bugFixData.impactScope = impactScope;
     }
 
-    if (isCustomerFeedback) {
+    if (hasCustomerFeedback) {
       // 6.4: 选择引入阶段（必填）
       const introductionPhaseOptions = customFieldOptions[CustomFieldId.INTRODUCTION_PHASE] || [];
 
@@ -157,20 +157,24 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
     }
 
     // Step 7: 确认并提交
-    const confirmed = await showSummaryAndConfirm(selectedBug, bugFixData);
+    const confirmed = await showSummaryAndConfirm(selectedBugs, bugFixData);
 
     if (!confirmed) {
       logger.info('操作已取消');
       return;
     }
 
-    // Step 8: 调用 API 更新 bug
-    const updateSpinner = ora('正在保存缺陷信息...').start();
+    // Step 8: 批量调用 API 更新所有选中的 bug
+    const updateSpinner = ora(`正在保存缺陷信息（共 ${selectedBugs.length} 个）...`).start();
 
     try {
-      await businessService.fixBug(projectId, selectedBug, bugFixData);
-      updateSpinner.succeed('缺陷信息保存成功！');
-      logger.info(`\nBug 链接：${issueLink(projectId, String(selectedBug.id))}`);
+      await Promise.all(
+        selectedBugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData))
+      );
+      updateSpinner.succeed(`缺陷信息保存成功！共更新 ${selectedBugs.length} 个 bug`);
+      selectedBugs.forEach((bug) => {
+        logger.info(`Bug 链接：${issueLink(projectId, String(bug.id))}`);
+      });
 
       // Step 9: 询问是否继续修复
       const continueIterate = await confirm({
@@ -195,11 +199,11 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
 }
 
 /**
- * 让用户选择一个 bug
+ * 让用户选择多个 bug（支持多选）
  * @param bugList bug 列表
- * @returns 选中的 bug，或 null 如果用户取消
+ * @returns 选中的 bug 列表，若未选则返回空数组
  */
-async function selectBug(bugList: IssueItem[]): Promise<IssueItem | null> {
+async function selectBugs(bugList: IssueItem[]): Promise<IssueItem[]> {
   const bugChoices = bugList.map((bug) => {
     const statusName = bug.status?.name || '未知状态';
     const name = bug.name.length > 40 ? `${bug.name.slice(0, 47)}...` : bug.name;
@@ -211,13 +215,13 @@ async function selectBug(bugList: IssueItem[]): Promise<IssueItem | null> {
     };
   });
 
-  const selectedBug = await select({
-    message: '请选择要修复的 bug',
+  const selectedBugs = await checkbox({
+    message: '请选择要修复的 bug（空格选择，回车确认）',
     choices: bugChoices,
     pageSize: 10,
   });
 
-  return selectedBug || null;
+  return selectedBugs;
 }
 
 /**
@@ -237,13 +241,16 @@ function checkIsCustomerFeedback(bug: IssueItem): boolean {
 
 /**
  * 显示总结信息并确认提交
- * @param bug 选中的 bug
+ * @param bugs 选中的 bug 列表
  * @param bugFixData 填写的缺陷信息
  * @returns 用户是否确认提交
  */
-async function showSummaryAndConfirm(bug: IssueItem, bugFixData: BugFixData): Promise<boolean> {
+async function showSummaryAndConfirm(bugs: IssueItem[], bugFixData: BugFixData): Promise<boolean> {
   logger.info('\n========== 填写信息总结 ==========\n');
-  logger.info(`Bug 标题: ${bug.name}`);
+  logger.info(`选中 Bug（共 ${bugs.length} 个）:`);
+  bugs.forEach((bug, index) => {
+    logger.info(`  ${index + 1}. ${bug.name}`);
+  });
   if (bugFixData.defectAnalysis) {
     logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis}`);
   }
