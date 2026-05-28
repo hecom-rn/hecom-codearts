@@ -52,8 +52,15 @@
     "echarts": "^6.0.0",
     "inquirer": "^13.2.2",
     "ora": "^9.3.0",
-    "picocolors": "^1.1.1",
-    "puppeteer": "^24.42.0"
+    "picocolors": "^1.1.1"
+  },
+  "peerDependencies": {
+    "puppeteer": ">=20.0.0"
+  },
+  "peerDependenciesMeta": {
+    "puppeteer": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/commander": "^2.12.0",

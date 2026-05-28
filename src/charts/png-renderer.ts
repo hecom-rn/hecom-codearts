@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import puppeteer from 'puppeteer';
 import macarons from './macarons';
 
 const _require = createRequire(__filename);
@@ -22,10 +21,20 @@ export interface ChartRenderTask {
  * 因为 headless 模式下 canvas.toDataURL() 受安全限制返回空白。
  */
 export async function renderChartsToPng(tasks: ChartRenderTask[]): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let puppeteer: any;
+  try {
+    puppeteer = await import('puppeteer');
+  } catch {
+    throw new Error(
+      'puppeteer 未安装，PNG 渲染功能需要手动安装：npm install puppeteer'
+    );
+  }
+
   const echartsPath = _require.resolve('echarts/dist/echarts.min.js');
   const echartsScript = fs.readFileSync(echartsPath, 'utf-8');
 
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  const browser = await (puppeteer.default ?? puppeteer).launch({ headless: true, args: ['--no-sandbox'] });
   try {
     for (const task of tasks) {
       const { option, outputPath, width = 800, height = 500 } = task;
