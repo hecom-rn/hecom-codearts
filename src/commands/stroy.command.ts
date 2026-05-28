@@ -199,12 +199,14 @@ async function selectStories(context: StoryTaskContext): Promise<IssueItem[]> {
     choices: context.stories
       .sort((a, b) => a.assigned_user?.id - b.assigned_user?.id)
       .map((story) => {
-        const taskUser = context.storyTaskMap
-          .get(story.id)
-          ?.map((issue) => issue.assigned_to?.assignedNickName)
-          .join(', ');
+        const tasks = context.storyTaskMap.get(story.id) || [];
+        const taskUser = tasks.map((issue) => issue.assigned_to?.assignedNickName).join(', ');
+        const hasTasks = tasks.length > 0;
+        const assigneePart = `[${story.assigned_user?.nick_name || '未知处理人'}]`;
+        const taskPart = taskUser ? `(已有Task:${taskUser})` : '';
+        const label = `${assigneePart}${story.name}${taskPart}`;
         return {
-          name: `[${story.assigned_user?.nick_name || '未知处理人'}]${story.name}${taskUser ? '(已有Task:' + taskUser + ')' : ''}`,
+          name: hasTasks ? label : `\x1b[33m${label}\x1b[0m`,
           value: story,
         };
       }),
