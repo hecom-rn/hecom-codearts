@@ -13,7 +13,7 @@ import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
 import { qualityCommand } from '../commands/quality.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
-import { stroyAllCommand, stroySingleCommand } from '../commands/stroy.command';
+import { storyAllCommand, storySingleCommand } from '../commands/story.command';
 import { upgradeCommand } from '../commands/upgrade.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
@@ -138,24 +138,24 @@ program
     }
   });
 
-const stroyCmd = program.command('story').description('为指定版本的 Story 拆解 Task');
+const storyCmd = program.command('story').description('为指定版本的 Story 拆解 Task');
 
-stroyCmd
+storyCmd
   .command('all <version>')
   .description('为没有拆解的 Story 创建 Task')
   .action(async (version, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
-    await stroyAllCommand(version, cliOptions);
+    await storyAllCommand(version, cliOptions);
   });
 
-stroyCmd
+storyCmd
   .command('single <version>')
   .description('交互式选择 Story 和处理人后创建子 Task')
   .action(async (version, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
-    await stroySingleCommand(version, cliOptions);
+    await storySingleCommand(version, cliOptions);
   });
 
 // rebug 命令组

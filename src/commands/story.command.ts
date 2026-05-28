@@ -279,7 +279,7 @@ async function createTasksWithSpinner(
   }
 }
 
-export async function stroyAllCommand(version: string, cliOptions: CliOptions = {}): Promise<void> {
+export async function storyAllCommand(version: string, cliOptions: CliOptions = {}): Promise<void> {
   const spinner = ora('正在查询 Story 和子 Task...').start();
 
   try {
@@ -316,7 +316,7 @@ export async function stroyAllCommand(version: string, cliOptions: CliOptions = 
   }
 }
 
-export async function stroySingleCommand(
+export async function storySingleCommand(
   version: string,
   cliOptions: CliOptions = {}
 ): Promise<void> {
