@@ -11,7 +11,7 @@ jest.mock('@inquirer/prompts', () => ({
   select: async () => '',
 }));
 
-jest.mock('inquirerjs-checkbox-search', () => ({
+jest.mock('../src/utils/searchable-checkbox', () => ({
   __esModule: true,
   default: async () => [],
   Separator: class {},

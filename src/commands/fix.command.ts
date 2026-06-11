@@ -1,11 +1,11 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import checkboxSearch from 'inquirerjs-checkbox-search';
 import ora from 'ora';
 import { BusinessService } from '../services/business.service';
 import { BugFixData, ConfigKey, CustomFieldId, IssueItem } from '../types';
 import { CliOptions, getConfig, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
 import { logger } from '../utils/logger';
+import checkboxSearch from '../utils/searchable-checkbox';
 
 /**
  * Fix 命令：交互式修复 bug，填写缺陷分析信息
