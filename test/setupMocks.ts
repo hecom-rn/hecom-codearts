@@ -11,6 +11,12 @@ jest.mock('@inquirer/prompts', () => ({
   select: async () => '',
 }));
 
+jest.mock('inquirerjs-checkbox-search', () => ({
+  __esModule: true,
+  default: async () => [],
+  Separator: class {},
+}));
+
 jest.mock('picocolors', () => ({
   cyan: (s: any) => s,
   cyanBright: (s: any) => s,
