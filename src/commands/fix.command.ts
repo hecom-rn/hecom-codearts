@@ -1,4 +1,5 @@
-import { checkbox, confirm, input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
+import checkboxSearch from 'inquirerjs-checkbox-search';
 import ora from 'ora';
 import { BusinessService } from '../services/business.service';
 import { BugFixData, ConfigKey, CustomFieldId, IssueItem } from '../types';
@@ -199,7 +200,7 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
 }
 
 /**
- * 让用户选择多个 bug（支持多选）
+ * 让用户选择多个 bug（支持多选 + 实时搜索过滤）
  * @param bugList bug 列表
  * @returns 选中的 bug 列表，若未选则返回空数组
  */
@@ -215,10 +216,24 @@ async function selectBugs(bugList: IssueItem[]): Promise<IssueItem[]> {
     };
   });
 
-  const selectedBugs = await checkbox({
-    message: '请选择要修复的 bug（空格选择，回车确认）',
+  const selectedBugs = await checkboxSearch({
+    message: '请选择要修复的 bug（输入关键词过滤，空格选择，回车确认）',
     choices: bugChoices,
     pageSize: 10,
+    filter: (items, term) => {
+      if (!term.trim()) {
+        return items;
+      }
+      const lowerTerm = term.toLowerCase();
+      return items.filter((item) => {
+        const bug = item.value;
+        return (
+          String(bug.id).includes(lowerTerm) ||
+          bug.name.toLowerCase().includes(lowerTerm) ||
+          (bug.status?.name ?? '').toLowerCase().includes(lowerTerm)
+        );
+      });
+    },
   });
 
   return selectedBugs;
