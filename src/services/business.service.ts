@@ -5,6 +5,7 @@ import {
   CustomFieldId,
   CurrentUserInfo,
   HuaweiCloudConfig,
+  IssueCommentV4,
   IssueDetail,
   IssueItem,
   IssueItemV2,
@@ -1041,6 +1042,54 @@ export class BusinessService {
         })
       );
       results.push(...(batchResults.filter((r) => r !== null) as IssueDetail[]));
+    }
+
+    return results;
+  }
+
+  /**
+   * 并发批量获取工作项评论
+   * @param projectId 项目ID
+   * @param issueIds 工作项ID列表
+   * @param concurrency 并发数，默认 10
+   * @returns 映射：issueId -> { success, comments?, error? }
+   */
+  async getIssueCommentsBatch(
+    projectId: string,
+    issueIds: number[],
+    concurrency: number = 10
+  ): Promise<Map<number, { success: boolean; comments?: IssueCommentV4[]; error?: string }>> {
+    const results = new Map<
+      number,
+      { success: boolean; comments?: IssueCommentV4[]; error?: string }
+    >();
+
+    for (let i = 0; i < issueIds.length; i += concurrency) {
+      const batch = issueIds.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map(async (id) => {
+          try {
+            const response = await this.apiService.getIssueComments(projectId, id);
+            if (response.success && response.data) {
+              const sorted = [...response.data.comments].sort(
+                (a, b) => Number(a.timestamp) - Number(b.timestamp)
+              );
+              return { id, success: true, comments: sorted };
+            }
+            return { id, success: false, error: response.error || '未知错误' };
+          } catch (error) {
+            logger.warn(`获取工作项 ${id} 评论失败: ${String(error)}`);
+            return { id, success: false, error: String(error) };
+          }
+        })
+      );
+      batchResults.forEach((r) => {
+        results.set(r.id, {
+          success: r.success,
+          comments: r.comments,
+          error: r.error,
+        });
+      });
     }
 
     return results;
