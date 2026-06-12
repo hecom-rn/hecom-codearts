@@ -1,9 +1,12 @@
 import { checkbox, select } from '@inquirer/prompts';
 import ora from 'ora';
+import pc from 'picocolors';
 import { BusinessService } from '../services/business.service';
 import {
   ConfigKey,
   CustomFieldId,
+  IssueCommentV4,
+  IssueDetail,
   IssueItem,
   IssueItemV2,
   IssueStatusId,
@@ -349,5 +352,153 @@ export async function storySingleCommand(
   } catch (error) {
     spinner.fail('执行失败');
     logger.error(`${String(error)}`);
+  }
+}
+
+export interface StoryDetailResult {
+  id: number;
+  success: boolean;
+  detail?: IssueDetail;
+  comments?: IssueCommentV4[];
+  error?: string;
+}
+
+function statusColor(statusName: string): (text: string) => string {
+  const map: Record<string, (text: string) => string> = {
+    进行中: pc.cyan,
+    已解决: pc.green,
+    已关闭: pc.gray,
+    已拒绝: pc.red,
+    测试中: pc.yellow,
+    重新打开: pc.red,
+    新问题: pc.red,
+    新需求: pc.blue,
+  };
+  return map[statusName] || ((text: string) => text);
+}
+
+function formatTimestamp(ts: string): string {
+  if (!ts) {
+    return '';
+  }
+  const n = Number(ts);
+  if (isNaN(n)) {
+    return ts;
+  }
+  const d = new Date(n);
+  const pad = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function outputDetailConsole(
+  results: StoryDetailResult[],
+  projectId: string,
+  withComments: boolean
+): void {
+  results.forEach((result, index) => {
+    logger.info('');
+    if (!result.success || !result.detail) {
+      logger.info(pc.red(`[${index + 1}] #${result.id} ✗ 查询失败: ${result.error || '未知错误'}`));
+      return;
+    }
+    const d = result.detail;
+    const status = d.status?.name || '-';
+    logger.info(
+      pc.bold(`[${index + 1}] #${d.id}  ${d.name}`) + (d.deleted ? pc.red(' [已删除]') : '')
+    );
+    logger.info(
+      `    状态: ${statusColor(status)(status)}   类型: ${d.tracker?.name || '-'}   优先级: ${d.priority?.name || '-'}   重要程度: ${d.severity?.name || '-'}`
+    );
+    logger.info(
+      `    处理人: ${d.assigned_user?.nick_name || d.assigned_user?.name || '-'}   开发人员: ${d.developer?.nick_name || d.developer?.name || '-'}   创建人: ${d.creator?.nick_name || d.creator?.name || '-'}`
+    );
+    logger.info(
+      `    迭代: ${d.iteration?.name || '-'}   模块: ${d.module?.name || '-'}   领域: ${d.domain?.name || '-'}`
+    );
+    logger.info(
+      `    预计工时: ${d.expected_work_hours ?? 0}h   实际工时: ${d.actual_work_hours ?? 0}h   完成度: ${d.done_ratio ?? 0}%`
+    );
+    logger.info(
+      `    创建: ${d.created_time || '-'}   更新: ${d.updated_time || '-'}   关闭: ${d.closed_time || '-'}`
+    );
+    logger.info(`    链接: ${issueLink(projectId, d.id)}`);
+
+    if (withComments) {
+      if (!result.comments || result.comments.length === 0) {
+        logger.info(pc.gray('    评论 (0): 无'));
+      } else {
+        logger.info(`    评论 (${result.comments.length}):`);
+        result.comments.forEach((c) => {
+          const time = formatTimestamp(c.timestamp);
+          const author = c.user?.nick_name || c.user?.user_name || '匿名';
+          const text = c.comment.replace(/<[^>]+>/g, '').trim();
+          logger.info(pc.gray(`      [${time}] ${author}: ${text}`));
+        });
+      }
+      if (result.error) {
+        logger.info(pc.yellow(`    警告: ${result.error}`));
+      }
+    }
+  });
+}
+
+export async function storyDetailCommand(
+  ids: string[],
+  cliOptions: CliOptions & { withComments?: boolean } = {}
+): Promise<void> {
+  const issueIds = ids.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n) && n > 0);
+
+  if (issueIds.length === 0) {
+    logger.error('未提供有效的工作项 ID');
+    return;
+  }
+
+  const { projectId, config, outputFormat } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+  const withComments = cliOptions.withComments ?? false;
+
+  const spinner = ora('正在查询工作项详情...').start();
+  const details = await businessService.getIssueDetails(projectId, issueIds, 10);
+  spinner.stop();
+
+  const detailMap = new Map(details.map((d) => [d.id, d]));
+  const results: StoryDetailResult[] = issueIds.map((id) => {
+    const detail = detailMap.get(id);
+    if (!detail) {
+      return { id, success: false, error: '未找到该工作项或无访问权限' };
+    }
+    return { id, success: true, detail };
+  });
+
+  if (withComments) {
+    const commentSpinner = ora('正在查询评论...').start();
+    const commentResults = await businessService.getIssueCommentsBatch(
+      projectId,
+      results.filter((r) => r.success).map((r) => r.id)
+    );
+    commentSpinner.stop();
+    results.forEach((r) => {
+      if (r.success) {
+        const c = commentResults.get(r.id);
+        if (c?.success) {
+          r.comments = c.comments;
+        } else {
+          r.comments = [];
+          if (c && !c.success) {
+            r.error = `评论获取失败: ${c.error}`;
+          }
+        }
+      }
+    });
+  }
+
+  if (outputFormat === 'json') {
+    logger.json(results);
+  } else {
+    outputDetailConsole(results, projectId, withComments);
+    const failedCount = results.filter((r) => !r.success).length;
+    if (failedCount > 0) {
+      logger.warn(`共 ${failedCount} 个工作项查询失败`);
+    }
   }
 }
