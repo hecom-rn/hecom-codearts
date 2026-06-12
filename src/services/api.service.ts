@@ -9,9 +9,11 @@ import {
   HuaweiCloudConfig,
   IamTokenRequest,
   IamTokenResponse,
+  IssueCommentV4,
   IssueDetail,
   ListChildIssuesV2Response,
   ListChildIssuesV4Response,
+  ListIssueCommentsV4Response,
   ListIssuesV4Request,
   ListIssuesV4Response,
   ListProjectIterationsV4Request,
@@ -435,6 +437,21 @@ export class ApiService {
   async getIssueById(projectId: string, issueId: string): Promise<ApiResponse<IssueDetail>> {
     return this.request(`/v4/projects/${projectId}/issues/${issueId}`, {
       method: 'GET',
+    });
+  }
+
+  /**
+   * 获取工作项的评论列表
+   */
+  async getIssueComments(
+    projectId: string,
+    issueId: number,
+    offset: number = 0,
+    limit: number = 100
+  ): Promise<ApiResponse<ListIssueCommentsV4Response>> {
+    return this.request(`/v4/projects/${projectId}/issues/${issueId}/comments`, {
+      method: 'GET',
+      params: { offset, limit },
     });
   }
 
