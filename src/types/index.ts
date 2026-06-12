@@ -377,6 +377,7 @@ export interface IssueTag {
 }
 
 export interface IssueDetail extends IssueItem {
+  description: string;
   tag_list: IssueTag[] | null;
 }
 

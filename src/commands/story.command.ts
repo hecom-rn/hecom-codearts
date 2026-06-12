@@ -423,6 +423,17 @@ function outputDetailConsole(
     );
     logger.info(`    链接: ${issueLink(projectId, d.id)}`);
 
+    if (d.description) {
+      logger.info(`    描述:`);
+      d.description
+        .split('\n')
+        .map((line) => line.replace(/<[^>]+>/g, '').trim())
+        .filter((line) => line.length > 0)
+        .forEach((line) => {
+          logger.info(pc.gray(`      ${line}`));
+        });
+    }
+
     if (withComments) {
       if (!result.comments || result.comments.length === 0) {
         logger.info(pc.gray('    评论 (0): 无'));
