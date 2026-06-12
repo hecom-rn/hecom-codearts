@@ -880,3 +880,23 @@ export interface BugFixData {
   developmentEnd?: string; // 开发端
   terminalType?: string; // 终端类型
 }
+
+// 工作项评论相关类型 (ListIssueCommentsV4)
+export interface CommentUserV4 {
+  nick_name: string;
+  user_name: string;
+  user_num_id: number;
+}
+
+export interface IssueCommentV4 {
+  id: number;
+  comment: string;
+  created_time: string;
+  timestamp: string;
+  user: CommentUserV4;
+}
+
+export interface ListIssueCommentsV4Response {
+  total: number;
+  comments: IssueCommentV4[];
+}
