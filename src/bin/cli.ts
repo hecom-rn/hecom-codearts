@@ -13,7 +13,7 @@ import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
 import { qualityCommand } from '../commands/quality.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
-import { storyAllCommand, storySingleCommand } from '../commands/story.command';
+import { storyAllCommand, storyDetailCommand, storySingleCommand } from '../commands/story.command';
 import { upgradeCommand } from '../commands/upgrade.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
@@ -156,6 +156,19 @@ storyCmd
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
     await storySingleCommand(version, cliOptions);
+  });
+
+storyCmd
+  .command('detail <ids...>')
+  .description('查询工作项详情，支持多个 ID 和可选评论查询')
+  .option('-c, --with-comments', '同时查询每个工作项的评论')
+  .action(async (ids, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      withComments: options.withComments,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    await storyDetailCommand(ids, cliOptions);
   });
 
 // rebug 命令组
