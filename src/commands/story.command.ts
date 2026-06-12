@@ -425,13 +425,19 @@ function outputDetailConsole(
 
     if (d.description) {
       logger.info(`    描述:`);
-      d.description
+      const text = d.description
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
         .split('\n')
-        .map((line) => line.replace(/<[^>]+>/g, '').trim())
+        .map((line) => line.trim())
         .filter((line) => line.length > 0)
-        .forEach((line) => {
+        .join('\n');
+      if (text) {
+        text.split('\n').forEach((line) => {
           logger.info(pc.gray(`      ${line}`));
         });
+      }
     }
 
     if (withComments) {
