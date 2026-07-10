@@ -285,37 +285,32 @@ async function createTasksWithSpinner(
 export async function storyAllCommand(version: string, cliOptions: CliOptions = {}): Promise<void> {
   const spinner = ora('正在查询 Story 和子 Task...').start();
 
-  try {
-    const context = await loadStoryTaskContext(version, cliOptions);
-    spinner.succeed('查询完成');
+  const context = await loadStoryTaskContext(version, cliOptions);
+  spinner.succeed('查询完成');
 
-    if (context.stories.length === 0) {
-      logger.warn(`未查询到版本 ${version}、开发端 ${context.developmentEnd} 的 Story`);
-      return;
-    }
+  if (context.stories.length === 0) {
+    logger.warn(`未查询到版本 ${version}、开发端 ${context.developmentEnd} 的 Story`);
+    return;
+  }
 
-    const targetStories = context.stories.filter(
-      (story) => (context.storyTaskMap.get(story.id)?.length || 0) === 0
-    );
+  const targetStories = context.stories.filter(
+    (story) => (context.storyTaskMap.get(story.id)?.length || 0) === 0
+  );
 
-    if (targetStories.length === 0) {
-      logger.info('所有 Story 都已有本开发端 Task');
-      return;
-    }
+  if (targetStories.length === 0) {
+    logger.info('所有 Story 都已有本开发端 Task');
+    return;
+  }
 
-    const currentUser = await context.businessService.getCurrentUser();
-    const createdCount = await createTasksWithSpinner(
-      context,
-      targetStories,
-      currentUser.user_num_id
-    );
+  const currentUser = await context.businessService.getCurrentUser();
+  const createdCount = await createTasksWithSpinner(
+    context,
+    targetStories,
+    currentUser.user_num_id
+  );
 
-    if (createdCount !== null) {
-      logger.success(`处理人：${currentUser.nick_name || currentUser.name}`);
-    }
-  } catch (error) {
-    spinner.fail('执行失败');
-    logger.error(`${String(error)}`);
+  if (createdCount !== null) {
+    logger.success(`处理人：${currentUser.nick_name || currentUser.name}`);
   }
 }
 
@@ -325,33 +320,24 @@ export async function storySingleCommand(
 ): Promise<void> {
   const spinner = ora('正在查询 Story 和子 Task...').start();
 
-  try {
-    const context = await loadStoryTaskContext(version, cliOptions);
-    spinner.succeed('查询完成');
+  const context = await loadStoryTaskContext(version, cliOptions);
+  spinner.succeed('查询完成');
 
-    if (context.stories.length === 0) {
-      logger.warn(`未查询到版本 ${version}、开发端 ${context.developmentEnd} 的 Story`);
-      return;
-    }
+  if (context.stories.length === 0) {
+    logger.warn(`未查询到版本 ${version}、开发端 ${context.developmentEnd} 的 Story`);
+    return;
+  }
 
-    const selectedStories = await selectStories(context);
-    const assignee = await selectAssignee(
-      context.businessService,
-      context.projectId,
-      context.roleIds
-    );
-    const createdCount = await createTasksWithSpinner(
-      context,
-      selectedStories,
-      assignee.user_num_id
-    );
+  const selectedStories = await selectStories(context);
+  const assignee = await selectAssignee(
+    context.businessService,
+    context.projectId,
+    context.roleIds
+  );
+  const createdCount = await createTasksWithSpinner(context, selectedStories, assignee.user_num_id);
 
-    if (createdCount !== null) {
-      logger.success(`处理人：${assignee.nick_name || assignee.user_name}`);
-    }
-  } catch (error) {
-    spinner.fail('执行失败');
-    logger.error(`${String(error)}`);
+  if (createdCount !== null) {
+    logger.success(`处理人：${assignee.nick_name || assignee.user_name}`);
   }
 }
 
