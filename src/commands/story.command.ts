@@ -393,24 +393,13 @@ function outputDetailConsole(
       pc.bold(`[${index + 1}] #${d.id}  ${d.name}`) + (d.deleted ? pc.red(' [已删除]') : '')
     );
     logger.info(
-      `    状态: ${statusColor(status)(status)}   类型: ${d.tracker?.name || '-'}   优先级: ${d.priority?.name || '-'}   重要程度: ${d.severity?.name || '-'}`
+      `  状态: ${statusColor(status)(status)}\t类型: ${d.tracker?.name || '-'}\t处理人: ${d.assigned_user?.nick_name || d.assigned_user?.name || '-'}`
     );
-    logger.info(
-      `    处理人: ${d.assigned_user?.nick_name || d.assigned_user?.name || '-'}   开发人员: ${d.developer?.nick_name || d.developer?.name || '-'}   创建人: ${d.creator?.nick_name || d.creator?.name || '-'}`
-    );
-    logger.info(
-      `    迭代: ${d.iteration?.name || '-'}   模块: ${d.module?.name || '-'}   领域: ${d.domain?.name || '-'}`
-    );
-    logger.info(
-      `    预计工时: ${d.expected_work_hours ?? 0}h   实际工时: ${d.actual_work_hours ?? 0}h   完成度: ${d.done_ratio ?? 0}%`
-    );
-    logger.info(
-      `    创建: ${d.created_time || '-'}   更新: ${d.updated_time || '-'}   关闭: ${d.closed_time || '-'}`
-    );
-    logger.info(`    链接: ${issueLink(projectId, d.id)}`);
-
+    logger.info(`  迭代: ${d.iteration?.name || '-'}\t领域: ${d.domain?.name || '-'}`);
+    logger.info(`  链接: ${issueLink(projectId, d.id)}`);
+    console.log(d.description);
     if (d.description) {
-      logger.info(`    描述:`);
+      logger.info(`  描述:`);
       const text = d.description
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
@@ -421,25 +410,26 @@ function outputDetailConsole(
         .join('\n');
       if (text) {
         text.split('\n').forEach((line) => {
-          logger.info(pc.gray(`      ${line}`));
+          logger.info(pc.gray(`    ${line}`));
         });
       }
     }
 
     if (withComments) {
       if (!result.comments || result.comments.length === 0) {
-        logger.info(pc.gray('    评论 (0): 无'));
+        logger.info(pc.gray('  评论 (0): 无'));
       } else {
-        logger.info(`    评论 (${result.comments.length}):`);
+        logger.info(`  评论 (${result.comments.length}):`);
         result.comments.forEach((c) => {
           const time = formatTimestamp(c.timestamp);
           const author = c.user?.nick_name || c.user?.user_name || '匿名';
+          console.log(c.comment);
           const text = c.comment.replace(/<[^>]+>/g, '').trim();
-          logger.info(pc.gray(`      [${time}] ${author}: ${text}`));
+          logger.info(pc.gray(`    [${time}] ${author}: ${text}`));
         });
       }
       if (result.error) {
-        logger.info(pc.yellow(`    警告: ${result.error}`));
+        logger.info(pc.yellow(`  警告: ${result.error}`));
       }
     }
   });
