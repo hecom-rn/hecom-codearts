@@ -267,16 +267,18 @@ async function queryDailyReport(
   const otherWork: DailyReport['otherWork'] = [];
   userStats.forEach((userStat) => {
     userStat.workHours.forEach((workHour) => {
-      if (
-        workHour.summary &&
-        workHour.summary.trim() !== '' &&
-        !isBug(workHour) &&
-        !displayedIssueIds.has(workHour.issueId)
-      ) {
-        const subject = subjectMap[workHour.subject] ?? workHour.subject;
+      if (!isBug(workHour) && !displayedIssueIds.has(workHour.issueId)) {
+        const hasSummary = !!(workHour.summary && workHour.summary.trim() !== '');
+        const subject = hasSummary ? (subjectMap[workHour.subject] ?? workHour.subject) : '';
+        const summary = hasSummary ? workHour.summary : workHour.subject;
+
+        if (!summary) {
+          return;
+        }
+
         otherWork.push({
           subject,
-          summary: workHour.summary,
+          summary,
           nickName: userStat.userName,
         });
       }
@@ -403,7 +405,8 @@ function consoleReport(report: DailyReport) {
     logger.info(`${index}.其他: ${report.otherWork.length}项`);
     report.otherWork.forEach((work) => {
       const subjectPart = work.subject ? `${work.subject} ` : '';
-      logger.info(` - ${subjectPart}${work.summary} ${work.nickName}`);
+      const summaryPart = work.summary ? `${work.summary} ` : '';
+      logger.info(` - ${subjectPart}${summaryPart}${work.nickName}`);
     });
     index++;
   }
