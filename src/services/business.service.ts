@@ -13,7 +13,6 @@ import {
   IssueStatusId,
   IssueTrackerId,
   IterationInfo,
-  IterationStatus,
   ProjectMember,
   ProjectRole,
   TestPlanItem,
@@ -164,10 +163,10 @@ export class BusinessService {
   }
 
   /**
-   * 获取指定日期之后的迭代列表
+   * 获取指定日期覆盖范围内的迭代列表(不限制迭代状态)
    * @param projectId 项目ID
    * @param targetDate 目标日期，格式：YYYY-MM-DD
-   * @returns 正在进行中的和未来的迭代列表
+   * @returns 目标日期在 begin_time 与 end_time 区间内的迭代列表
    */
   async getActiveIterationsOnDate(projectId: string, targetDate: string): Promise<IterationInfo[]> {
     const iterationsResponse = await this.apiService.getIterations(projectId, {
@@ -181,18 +180,11 @@ export class BusinessService {
     const iterations = iterationsResponse.data?.iterations || [];
     const targetDateTime = new Date(targetDate).getTime();
 
-    // 过滤出在目标日期正在进行中的迭代
     return iterations.filter((iteration) => {
-      // 检查迭代状态是否为进行中 (1)
-      if (iteration.status !== IterationStatus.IN_PROGRESS) {
-        return false;
-      }
-
-      // 检查目标日期是否在迭代时间范围内
-      // const beginTime = new Date(iteration.begin_time).getTime();
+      const beginTime = new Date(iteration.begin_time).getTime();
       const endTime = new Date(iteration.end_time).getTime();
 
-      return targetDateTime <= endTime;
+      return beginTime <= targetDateTime && targetDateTime <= endTime;
     });
   }
 
