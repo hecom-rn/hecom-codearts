@@ -510,8 +510,20 @@ function formatTimestamp(ts: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// 解码常见 HTML 实体，&amp; 必须最后处理以避免二次解码
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
 /**
- * 将 HTML 内容转为纯文本，图片标签替换为 [图片N] 占位符（N 对应图片列表序号）
+ * 将 HTML 内容转为纯文本，图片标签替换为 [图片N] 占位符（N 对应图片列表序号）；
+ * a 标签在文本与链接地址不一致时追加链接，避免纯文本丢失实际地址
  */
 function renderHtmlText(html: string, imageIndex: Map<string, number>): string {
   return html
@@ -520,6 +532,14 @@ function renderHtmlText(html: string, imageIndex: Map<string, number>): string {
       const index = match ? imageIndex.get(match[0]) : undefined;
       return index ? `[图片${index}]` : '[图片]';
     })
+    .replace(
+      /<a\s[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      (_tag, href: string, inner: string) => {
+        const text = decodeHtmlEntities(inner.replace(/<[^>]+>/g, '')).trim();
+        const url = decodeHtmlEntities(href).trim();
+        return !url || text === url ? text : `${text}（${url}）`;
+      }
+    )
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, '')
