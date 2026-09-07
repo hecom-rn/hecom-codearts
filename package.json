@@ -13,10 +13,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rimraf dist && tsc && npm link",
+    "build": "rimraf dist && tsc",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
+    "link:dev": "npm link",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
-    "prepublishOnly": "npm run build",
     "dev": "ts-node src/bin/cli.ts",
     "minor": "npm version minor -m \"Bump version to %s\"; git push --follow-tags",
     "patch": "npm version patch -m \"Bump version to %s\"; git push --follow-tags",
