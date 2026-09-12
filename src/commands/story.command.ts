@@ -611,6 +611,9 @@ function outputDetailConsole(
     );
     const domainPart = defectType ? padCell(domainCell, secondColWidth) : domainCell;
     logger.info(`  ${padCell(iterationCell, firstColWidth)}${domainPart}${defectType}`);
+    if (d.tracker?.id === IssueTrackerId.TASK && d.parent_issue) {
+      logger.info(`  父工作项: ${d.parent_issue.name} (#${d.parent_issue.id})`);
+    }
     logger.info(`  链接: ${issueLink(projectId, d.id)}`);
     if (d.description) {
       logger.info(`  描述:`);
