@@ -2,6 +2,8 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import {
   AddIssueNotesRequest,
   AddIssueNotesResponse,
+  AddIssueWorkHoursRequest,
+  AddIssueWorkHoursResponse,
   ApiResponse,
   CachedToken,
   CurrentUserInfo,
@@ -13,11 +15,14 @@ import {
   IssueDetail,
   ListChildIssuesV2Response,
   ListChildIssuesV4Response,
+  ListDomainsV2Response,
   ListIssueCommentsV4Response,
   ListIssuesV4Request,
   ListIssuesV4Response,
   ListProjectIterationsV4Request,
   ListProjectIterationsV4Response,
+  ListProjectModulesResponse,
+  ListWorkHoursTypeResponse,
   ProjectListResponse,
   ProjectMemberListResponse,
   ProjectMemberQueryParams,
@@ -225,7 +230,13 @@ export class ApiService {
           }
         }
 
-        logger.error(`CodeArts响应错误: ${String(error.response?.data || error.message)}`);
+        logger.error(
+          `CodeArts响应错误: ${
+            typeof error.response?.data === 'object'
+              ? JSON.stringify(error.response?.data)
+              : String(error.response?.data || error.message)
+          }`
+        );
         return Promise.reject(error);
       }
     );
@@ -391,25 +402,26 @@ export class ApiService {
   }
 
   /**
-   * 提取错误信息（兼容 JSON 与二进制响应体）
+   * 提取错误信息（兼容 JSON 与二进制响应体，附带错误码便于排查）
    */
   private extractErrorMessage(error: AxiosError): string {
     const data: unknown = error.response?.data;
+    let body: { error_msg?: string; error_code?: string; message?: string } | undefined;
+
     if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
       try {
         const buffer =
           data instanceof ArrayBuffer ? Buffer.from(data) : Buffer.from(data as Uint8Array);
-        const parsed = JSON.parse(buffer.toString('utf-8')) as {
-          error_msg?: string;
-          message?: string;
-        };
-        return parsed.error_msg || parsed.message || error.message;
+        body = JSON.parse(buffer.toString('utf-8'));
       } catch {
-        return error.message;
+        body = undefined;
       }
+    } else {
+      body = data as { error_msg?: string; error_code?: string; message?: string } | undefined;
     }
-    const dataObj = data as { error_msg?: string; message?: string } | undefined;
-    return dataObj?.error_msg || dataObj?.message || error.message;
+
+    const message = body?.error_msg || body?.message || error.message;
+    return body?.error_code ? `${message}（错误码: ${body.error_code}）` : message;
   }
 
   /**
@@ -672,6 +684,64 @@ export class ApiService {
       data: {
         custom_fields: customFieldIds,
       },
+    });
+  }
+
+  /**
+   * 查询领域列表 (ListDomainsV2)，返回更新工作项所需的数字 domain_id
+   * 文档标注参数名为 project_id，实测接口要求 projectUUId
+   */
+  async getDomainsV2(
+    projectId: string,
+    flag: number = 1,
+    offset: number = 0,
+    limit: number = 10
+  ): Promise<ApiResponse<ListDomainsV2Response>> {
+    return this.request('/v2/domain/domain', {
+      method: 'GET',
+      params: { projectUUId: projectId, flag, offset, limit },
+    });
+  }
+
+  /**
+   * 查询项目的模块列表 (ListProjectModules)
+   */
+  async getProjectModules(
+    projectId: string,
+    offset: number = 0,
+    limit: number = 100
+  ): Promise<ApiResponse<ListProjectModulesResponse>> {
+    return this.request(`/v4/projects/${projectId}/modules`, {
+      method: 'GET',
+      params: { offset, limit },
+    });
+  }
+
+  /**
+   * 为工作项添加工时 (AddIssueWorkHours)
+   */
+  async addIssueWorkHours(
+    projectId: string,
+    issueId: number,
+    data: AddIssueWorkHoursRequest
+  ): Promise<ApiResponse<AddIssueWorkHoursResponse>> {
+    return this.request(`/v4/projects/${projectId}/issues/${issueId}/work-hours`, {
+      method: 'POST',
+      data,
+    });
+  }
+
+  /**
+   * 查询项目的工时类型列表 (ListProjectWorkHoursType)
+   */
+  async getWorkHoursTypes(
+    projectId: string,
+    offset: number = 0,
+    limit: number = 100
+  ): Promise<ApiResponse<ListWorkHoursTypeResponse>> {
+    return this.request(`/v4/projects/${projectId}/work-hours-type`, {
+      method: 'GET',
+      params: { offset, limit },
     });
   }
 

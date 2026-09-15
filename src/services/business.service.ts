@@ -15,16 +15,20 @@ import {
   IssueNewCustomField,
   IssueStatusId,
   IssueTrackerId,
+  IssueWorkHour,
   IterationInfo,
   ProjectMember,
+  ProjectModule,
   ProjectRole,
   TestPlanItem,
   TypeWorkHourStats,
+  UpdateIssueRequest,
   UserAllWorkHourStats,
   UserWorkHourStats,
   UserWorkStats,
   WorkHour,
   WorkHourStats,
+  WorkHoursType,
   WorkProgressStats,
 } from '../types';
 import { logger } from '../utils/logger';
@@ -1092,6 +1096,147 @@ export class BusinessService {
   }
 
   /**
+   * 获取单个工作项详情，失败时抛出异常
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   */
+  async getIssueDetail(projectId: string, issueId: number): Promise<IssueDetail> {
+    const response = await this.apiService.getIssueById(projectId, String(issueId));
+    if (!response.success || !response.data) {
+      throw new Error(response.error || '未知错误');
+    }
+    return response.data;
+  }
+
+  /**
+   * 获取项目的领域列表（ListDomainsV2，分页获取全量，返回数字领域 ID）
+   * @param projectId 项目ID
+   */
+  async getProjectDomains(projectId: string): Promise<Array<{ id: number; name: string }>> {
+    const result: Array<{ id: number; name: string }> = [];
+    const pageSize = 10; // ListDomainsV2 单页上限
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.apiService.getDomainsV2(projectId, 1, offset, pageSize);
+      if (!response.success || !response.data || response.data.status !== 'success') {
+        throw new Error(
+          `获取领域列表失败: ${response.error || response.data?.status || '未知错误'}`
+        );
+      }
+      (response.data.result?.domains || []).forEach((d) =>
+        result.push({ id: d.domainId, name: d.name })
+      );
+      const total = response.data.result?.totalCount || 0;
+      offset += pageSize;
+      hasMore = result.length < total;
+    }
+
+    return result;
+  }
+
+  /**
+   * 获取项目的模块列表（递归摊平各级子模块，分页获取全量）
+   * @param projectId 项目ID
+   */
+  async getProjectModules(projectId: string): Promise<Array<{ id: number; name: string }>> {
+    const result: Array<{ id: number; name: string }> = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    const collect = (modules: ProjectModule[]): void => {
+      modules.forEach((m) => {
+        result.push({ id: m.module_id, name: m.module_name });
+        if (m.children && m.children.length > 0) {
+          collect(m.children);
+        }
+      });
+    };
+
+    while (hasMore) {
+      const response = await this.apiService.getProjectModules(projectId, offset, pageSize);
+      if (!response.success) {
+        throw new Error(`获取模块列表失败: ${response.error || '未知错误'}`);
+      }
+      collect(response.data?.modules || []);
+      const total = response.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return result;
+  }
+
+  /**
+   * 更新工作项字段（系统字段与自定义字段）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param issueData 待更新的字段
+   */
+  async updateIssue(
+    projectId: string,
+    issueId: string,
+    issueData: UpdateIssueRequest
+  ): Promise<void> {
+    const response = await this.apiService.updateIssue(projectId, issueId, issueData);
+    if (!response.success) {
+      throw new Error(response.error || '未知错误');
+    }
+  }
+
+  /**
+   * 为工作项登记工时
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param hours 工时数
+   * @param options typeId 工时类型（缺省不指定）、startDate/dueDate 工时起止日期
+   * @returns 按天拆分后的登记结果
+   */
+  async addIssueWorkHour(
+    projectId: string,
+    issueId: number,
+    hours: number,
+    options: { typeId?: number; startDate: string; dueDate: string }
+  ): Promise<IssueWorkHour[]> {
+    const response = await this.apiService.addIssueWorkHours(projectId, issueId, {
+      work_hours: hours,
+      work_hours_type_id: options.typeId,
+      start_date: options.startDate,
+      due_date: options.dueDate,
+    });
+    if (!response.success || !response.data) {
+      throw new Error(response.error || '未知错误');
+    }
+    return response.data.added_work_hours || [];
+  }
+
+  /**
+   * 获取项目的工时类型列表（分页获取全量）
+   * @param projectId 项目ID
+   */
+  async getWorkHoursTypes(projectId: string): Promise<WorkHoursType[]> {
+    const result: WorkHoursType[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.apiService.getWorkHoursTypes(projectId, offset, pageSize);
+      if (!response.success) {
+        throw new Error(`获取工时类型列表失败: ${response.error || '未知错误'}`);
+      }
+      result.push(...(response.data?.work_hours_types || []));
+      const total = response.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return result;
+  }
+
+  /**
    * 下载工作项中的图片并保存到指定路径（未指定时保存到系统缓存目录，已存在时直接复用缓存）
    * @param projectId 项目ID
    * @param imageUri 图片URI，issue 内容中为 /v2/upload 前缀，下载接口要求 /v1，自动替换
@@ -1163,7 +1308,7 @@ export class BusinessService {
    * @param dateStr 日期字符串，格式：YYYY-MM-DD
    * @returns 毫秒时间戳，如果解析失败返回 null
    */
-  private parseDateToTimestamp(dateStr: string): number | null {
+  parseDateToTimestamp(dateStr: string): number | null {
     try {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) {

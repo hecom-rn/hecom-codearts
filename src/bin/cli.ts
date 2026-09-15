@@ -11,6 +11,13 @@ import {
 } from '../commands/config.command';
 import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
+import {
+  issueAddNoteCommand,
+  issueDetailCommand,
+  issueOptionsCommand,
+  issueUpdateCommand,
+  issueWorkHourCommand,
+} from '../commands/issue.command';
 import { qualityCommand } from '../commands/quality.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
 import { storyAllCommand, storyDetailCommand, storySingleCommand } from '../commands/story.command';
@@ -169,6 +176,112 @@ storyCmd
     };
     logger.setOutputFormat(cliOptions.output);
     await storyDetailCommand(ids, cliOptions);
+  });
+
+// issue 命令组
+const issueCmd = program.command('issue').description('工作项查询与维护');
+
+issueCmd
+  .command('detail <ids...>')
+  .description('查询工作项详情，支持多个 ID 和可选评论查询，自动下载内容中的图片')
+  .option('-c, --with-comments', '同时查询每个工作项的评论')
+  .option('--json', '输出原始接口的完整 JSON（跳过图片/附件下载）')
+  .action(async (ids, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      withComments: options.withComments,
+      json: options.json,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueDetailCommand(ids, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`查询工作项详情失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('addNote <id> <notes>')
+  .description('为工作项添加评论，内容支持 HTML')
+  .action(async (id, notes, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueAddNoteCommand(id, notes, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`添加评论失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('workhour <id> <hours>')
+  .description('为工作项登记工时，日期缺省为当天，跨多天时按天均摊')
+  .option('-t, --type <名称或ID>', '工时类型名称或 ID（如：后端开发）')
+  .option('--start <date>', '开始日期 YYYY-MM-DD（默认当天）')
+  .option('--end <date>', '结束日期 YYYY-MM-DD（默认与开始日期一致）')
+  .action(async (id, hours, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueWorkHourCommand(id, hours, options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`工时登记失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('options [field]')
+  .description(
+    '查询字段可用的选项，支持系统字段与自定义字段（如：状态、status、缺陷分析；不带字段时列出全部可查询字段）'
+  )
+  .action(async (field, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueOptionsCommand(field, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`查询字段选项失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('update <id>')
+  .description('更新工作项字段，支持系统字段与自定义字段')
+  .option('--name <title>', '标题')
+  .option('--description <text>', '描述（支持 HTML）')
+  .option('--status <名称或ID>', '状态，如：已解决')
+  .option('--assigned <昵称或ID>', '处理人（昵称、用户名或成员数字 ID）')
+  .option('--developer <昵称或ID>', '开发人员（昵称、用户名或成员数字 ID）')
+  .option('--iteration <名称或ID>', '迭代名称或 ID')
+  .option('--priority <名称或ID>', '优先级：低/中/高 或数字 ID')
+  .option('--severity <名称或ID>', '重要程度：关键/重要/一般/提示 或数字 ID')
+  .option('--domain <名称或ID>', '领域名称或数字 ID')
+  .option('--module <名称或ID>', '模块名称或数字 ID')
+  .option('--parent <id>', '父工作项 ID')
+  .option('--begin <date>', '预计开始时间，YYYY-MM-DD')
+  .option('--end <date>', '预计结束时间，YYYY-MM-DD')
+  .option('--done-ratio <0-100>', '完成度')
+  .option('--expected-work-hours <hours>', '预计工时')
+  .option('--actual-work-hours <hours>', '实际工时')
+  .option(
+    '-f, --field <名称=值>',
+    '自定义字段，如：-f 产品模块=APP（可重复传入）',
+    (value: string, previous: string[]) => [...(previous || []), value],
+    []
+  )
+  .action(async (id, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueUpdateCommand(id, options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`更新工作项失败: ${String(error)}`);
+      process.exit(1);
+    }
   });
 
 // rebug 命令组

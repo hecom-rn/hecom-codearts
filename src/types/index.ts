@@ -918,3 +918,82 @@ export interface ListIssueCommentsV4Response {
   total: number;
   comments: IssueCommentV4[];
 }
+
+// 项目领域列表相关类型 (ListDomainsV2，返回更新工作项所需的数字 domainId；实际响应为驼峰命名)
+export interface ProjectDomainV2 {
+  id: number; // 领域id
+  name: string; // 领域名称
+  flag: number; // 是否配置到该项目（0/1）
+  projectId: number; // 项目数字id
+  domainId: number; // 领域数字id
+  projectUUId: string; // 项目32位uuid
+  domainUUId?: string; // 领域32位uuid
+  defaultD: number; // 默认值
+  authorId?: number; // 创建人数字id
+  authorUUId?: string; // 创建人uuid
+}
+
+export interface ListDomainsV2Response {
+  status: string; // 返回状态，如 success
+  result: {
+    totalCount: number; // 领域数量
+    domains: ProjectDomainV2[]; // 领域列表
+  };
+}
+
+// 项目模块列表相关类型 (ListProjectModules)
+export interface ProjectModuleOwner {
+  nick_name: string; // 归属人昵称
+  user_id: string; // 归属人uuid
+  user_name: string; // 归属人用户名
+  user_num_id: number; // 归属人数字id
+}
+
+export interface ProjectModule {
+  module_id: number; // 模块id
+  module_name: string; // 模块名称
+  deepth: number; // 模块层级
+  is_parent: boolean; // 是否为父模块
+  parent_module_id?: number; // 父模块id（子模块返回）
+  owner?: ProjectModuleOwner; // 归属人
+  children?: ProjectModule[]; // 子模块列表（递归结构）
+}
+
+export interface ListProjectModulesResponse {
+  total: number; // 模块总数
+  modules: ProjectModule[]; // 模块列表
+}
+
+// 工时登记相关类型 (AddIssueWorkHours)
+export interface AddIssueWorkHoursRequest {
+  start_date: string; // 工时开始日期，YYYY-MM-DD
+  due_date: string; // 工时结束日期，YYYY-MM-DD
+  work_hours: number; // 工时数（跨多天时按天均摊）
+  work_hours_type_id?: number; // 工时类型id，21-34
+}
+
+export interface IssueWorkHour {
+  issue_id: number; // 工作项id
+  user_name: string; // 登记人用户名
+  user_nick_name: string; // 登记人昵称
+  work_date: string; // 工时日期
+  work_hours: number; // 工时数
+  work_hours_id: string; // 工时记录id
+  work_hours_type_name: string; // 工时类型名称
+}
+
+export interface AddIssueWorkHoursResponse {
+  added_work_hours: IssueWorkHour[]; // 登记结果（按天拆分）
+}
+
+// 工时类型相关类型 (ListProjectWorkHoursType)
+export interface WorkHoursType {
+  id: number; // 工时类型id
+  name: string; // 工时类型名称
+  status: number; // 0已删除 1有效 2已废弃
+}
+
+export interface ListWorkHoursTypeResponse {
+  total: number; // 总数
+  work_hours_types: WorkHoursType[]; // 工时类型列表
+}
