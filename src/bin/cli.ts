@@ -13,7 +13,10 @@ import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
 import {
   issueAddNoteCommand,
+  issueCommentsCommand,
+  issueCreateCommand,
   issueDetailCommand,
+  issueListCommand,
   issueOptionsCommand,
   issueUpdateCommand,
   issueWorkHourCommand,
@@ -185,18 +188,122 @@ issueCmd
   .command('detail <ids...>')
   .description('查询工作项详情，支持多个 ID 和可选评论查询，自动下载内容中的图片')
   .option('-c, --with-comments', '同时查询每个工作项的评论')
+  .option('--no-download', '跳过图片和附件下载')
   .option('--json', '输出原始接口的完整 JSON（跳过图片/附件下载）')
   .action(async (ids, options, command) => {
     const cliOptions = {
       ...command.parent.parent.opts(),
       withComments: options.withComments,
       json: options.json,
+      noDownload: options.download === false,
     };
     logger.setOutputFormat(cliOptions.output);
     try {
       await issueDetailCommand(ids, cliOptions);
     } catch (error: unknown) {
       logger.error(`查询工作项详情失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue list 子命令 - 按条件筛选工作项列表
+issueCmd
+  .command('list')
+  .description('按条件筛选工作项列表，输出标题与链接')
+  .option('-k, --keyword <text>', '标题关键字')
+  .option('-t, --type <名称或ID>', '工作项类型，逗号分隔：bug/task/story/feature/epic 或数字 ID')
+  .option('--status <名称或ID>', '状态，逗号分隔，如：新问题,进行中')
+  .option(
+    '-a, --assigned <昵称或ID>',
+    '处理人，逗号分隔（昵称、用户名、成员数字 ID，my 表示当前用户）'
+  )
+  .option('--creator <昵称或ID>', '创建人，逗号分隔（昵称、用户名、成员数字 ID，my 表示当前用户）')
+  .option(
+    '-d, --developer <昵称或ID>',
+    '开发人员，逗号分隔（昵称、用户名、成员数字 ID，my 表示当前用户）'
+  )
+  .option('-i, --iteration <名称或ID>', '迭代名称或 ID，逗号分隔，支持模糊匹配')
+  .option('--priority <名称或ID>', '优先级，逗号分隔：低/中/高 或数字 ID')
+  .option('--severity <名称或ID>', '重要程度，逗号分隔：关键/重要/一般/提示 或数字 ID')
+  .option('--domain <名称或ID>', '领域名称或数字 ID，逗号分隔')
+  .option('--module <名称或ID>', '模块名称或数字 ID，逗号分隔')
+  .option(
+    '-f, --field <名称=值>',
+    '自定义字段过滤，如：-f 产品模块=APP（可重复传入）',
+    (value: string, previous: string[]) => [...(previous || []), value],
+    []
+  )
+  .option('--created <start,end>', '创建时间区间，YYYY-MM-DD,YYYY-MM-DD（一侧可留空）')
+  .option('--updated <start,end>', '更新时间区间，YYYY-MM-DD,YYYY-MM-DD（一侧可留空）')
+  .option('--limit <n>', '最多返回条数（默认返回全部）')
+  .option(
+    '-l, --meta <名称列表>',
+    '元数据字段，逗号分隔，范围同 issue options 的字段（类型/状态/处理人/开发人员/迭代/优先级/重要程度/领域/模块/父工作项/自定义字段名），缺省输出 类型,状态,处理人,迭代,重要程度'
+  )
+  .option('-q, --quiet', '仅输出工作项 ID，每行一个（便于管道组合其他命令）')
+  .option('--count', '仅输出匹配条数，不拉取列表（忽略 --limit）')
+  .option('--json', '以 JSON 格式输出工作项数据')
+  .action(async (options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueListCommand(options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`查询工作项列表失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('comments <id>')
+  .description('查询工作项评论，按时间正序输出')
+  .option('-n, --last <n>', '只显示最近 N 条')
+  .option('--json', '以 JSON 格式输出评论数据')
+  .action(async (id, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueCommentsCommand(id, options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`查询工作项评论失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue create 子命令 - 创建工作项
+issueCmd
+  .command('create')
+  .description('创建工作项，字段用法与 issue update 一致')
+  .requiredOption('-t, --type <名称或ID>', '工作项类型：bug/task/story/feature/epic 或数字 ID')
+  .requiredOption('-n, --name <标题>', '标题')
+  .option('--description <text>', '描述（支持 HTML）')
+  .option('--status <名称或ID>', '状态，如：新问题')
+  .option('--assigned <昵称或ID>', '处理人（昵称、用户名或成员数字 ID）')
+  .option('--developer <昵称或ID>', '开发人员（昵称、用户名或成员数字 ID）')
+  .option('--iteration <名称或ID>', '迭代名称或 ID')
+  .option('--priority <名称或ID>', '优先级：低/中/高 或数字 ID')
+  .option('--severity <名称或ID>', '重要程度：关键/重要/一般/提示 或数字 ID')
+  .option('--domain <名称或ID>', '领域名称或数字 ID')
+  .option('--module <名称或ID>', '模块名称或数字 ID')
+  .option('--parent <id>', '父工作项 ID')
+  .option('--begin <date>', '预计开始时间，YYYY-MM-DD')
+  .option('--end <date>', '预计结束时间，YYYY-MM-DD')
+  .option('--done-ratio <0-100>', '完成度')
+  .option('--expected-work-hours <hours>', '预计工时')
+  .option('--actual-work-hours <hours>', '实际工时')
+  .option(
+    '-f, --field <名称=值>',
+    '自定义字段，如：-f 终端类型=手机端（可重复传入）',
+    (value: string, previous: string[]) => [...(previous || []), value],
+    []
+  )
+  .action(async (options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueCreateCommand(options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`创建工作项失败: ${String(error)}`);
       process.exit(1);
     }
   });

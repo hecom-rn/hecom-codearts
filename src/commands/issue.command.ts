@@ -2,12 +2,17 @@ import ora from 'ora';
 import pc from 'picocolors';
 import { BusinessService } from '../services/business.service';
 import {
+  CreateIssueV4Response,
   CustomFieldId,
   IssueCommentV4,
   IssueDetail,
+  IssueItem,
   IssueNewCustomField,
   IssueStatusId,
   IssueTrackerId,
+  ListIssuesV4Request,
+  ProjectIssueStatus,
+  ProjectMember,
   UpdateIssueRequest,
 } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
@@ -371,7 +376,11 @@ async function fetchRawIssueDetails(
 
 export async function issueDetailCommand(
   ids: string[],
-  cliOptions: CliOptions & { withComments?: boolean; json?: boolean } = {}
+  cliOptions: CliOptions & {
+    withComments?: boolean;
+    json?: boolean;
+    noDownload?: boolean;
+  } = {}
 ): Promise<void> {
   const issueIds = ids.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n) && n > 0);
 
@@ -437,24 +446,28 @@ export async function issueDetailCommand(
     });
   }
 
-  const imageSpinner = ora('正在解析并下载工作项图片...').start();
-  const { total, failed } = await downloadIssueImages(businessService, projectId, results);
-  if (total > 0) {
-    imageSpinner.succeed(`图片处理完成：共 ${total} 张${failed > 0 ? `，失败 ${failed} 张` : ''}`);
-  } else {
-    imageSpinner.stop();
-  }
+  if (!cliOptions.noDownload) {
+    const imageSpinner = ora('正在解析并下载工作项图片...').start();
+    const { total, failed } = await downloadIssueImages(businessService, projectId, results);
+    if (total > 0) {
+      imageSpinner.succeed(
+        `图片处理完成：共 ${total} 张${failed > 0 ? `，失败 ${failed} 张` : ''}`
+      );
+    } else {
+      imageSpinner.stop();
+    }
 
-  const attachmentSpinner = ora('正在下载工作项附件...').start();
-  const attachmentStats = await downloadIssueAttachments(businessService, projectId, results);
-  if (attachmentStats.total > 0) {
-    attachmentSpinner.succeed(
-      `附件处理完成：共 ${attachmentStats.total} 个${
-        attachmentStats.failed > 0 ? `，失败 ${attachmentStats.failed} 个` : ''
-      }`
-    );
-  } else {
-    attachmentSpinner.stop();
+    const attachmentSpinner = ora('正在下载工作项附件...').start();
+    const attachmentStats = await downloadIssueAttachments(businessService, projectId, results);
+    if (attachmentStats.total > 0) {
+      attachmentSpinner.succeed(
+        `附件处理完成：共 ${attachmentStats.total} 个${
+          attachmentStats.failed > 0 ? `，失败 ${attachmentStats.failed} 个` : ''
+        }`
+      );
+    } else {
+      attachmentSpinner.stop();
+    }
   }
 
   if (outputFormat === 'json') {
@@ -511,7 +524,7 @@ export interface IssueUpdateOptions {
   field?: string[]; // 自定义字段，格式 名称=值（可重复传入）
 }
 
-// 状态名称与 IssueStatusId 枚举对应
+// 状态名称与 IssueStatusId 枚举对应（静态快速路径，未命中时查询项目状态配置）
 const STATUS_NAME_TO_ID: Record<string, IssueStatusId> = {
   新需求: IssueStatusId.NEW_REQUIREMENT,
   进行中: IssueStatusId.IN_PROGRESS,
@@ -528,6 +541,15 @@ const STATUS_NAME_TO_ID: Record<string, IssueStatusId> = {
   接受处理: IssueStatusId.ACCEPTED,
   已验证: IssueStatusId.VERIFIED,
   重新打开: IssueStatusId.REOPENED,
+};
+
+// 工作项类型 ID 与名称对照（状态适用类型展示用）
+const TRACKER_ID_TO_NAME: Record<number, string> = {
+  [IssueTrackerId.TASK]: 'Task',
+  [IssueTrackerId.BUG]: 'Bug',
+  [IssueTrackerId.EPIC]: 'Epic',
+  [IssueTrackerId.FEATURE]: 'Feature',
+  [IssueTrackerId.STORY]: 'Story',
 };
 
 // 自定义字段名称与 CustomFieldId 枚举对应
@@ -568,17 +590,29 @@ function isNumericString(value: string): boolean {
   return /^\d+$/.test(value.trim());
 }
 
-function resolveStatusId(value: string): number {
+async function resolveStatusId(
+  businessService: BusinessService,
+  projectId: string,
+  value: string
+): Promise<number> {
   if (isNumericString(value)) {
     return Number(value.trim());
   }
-  const id = STATUS_NAME_TO_ID[value.trim()];
-  if (id === undefined) {
-    throw new Error(
-      `未知状态 "${value}"，支持：${Object.keys(STATUS_NAME_TO_ID).join('、')} 或状态 ID`
-    );
+  const staticId = STATUS_NAME_TO_ID[value.trim()];
+  if (staticId !== undefined) {
+    return staticId;
   }
-  return id;
+  // 静态枚举未命中时查询项目状态配置，覆盖项目模板扩展的状态
+  const statuses = await businessService.getProjectStatuses(projectId);
+  const matched = statuses.filter((s) => s.name === value.trim());
+  if (matched.length === 0) {
+    throw new Error(`未知状态 "${value}"，请通过 codearts issue options status 查看可用状态`);
+  }
+  const statusIds = [...new Set(matched.map((s) => s.status_id))];
+  if (statusIds.length > 1) {
+    throw new Error(`状态 "${value}" 在不同工作项类型下对应不同 ID，请改用状态数字 ID`);
+  }
+  return statusIds[0];
 }
 
 /**
@@ -623,11 +657,17 @@ async function resolveIterationId(
   projectId: string,
   value: string
 ): Promise<number> {
+  const iterations = await businessService.getIterations(projectId, { limit: 1000 });
+
+  // 数值优先按迭代名精确匹配（迭代名可能为纯数字），无命中再按 ID 处理
   if (isNumericString(value)) {
+    const byName = iterations.find((i) => i.name === value.trim());
+    if (byName) {
+      return byName.id;
+    }
     return Number(value.trim());
   }
 
-  const iterations = await businessService.getIterations(projectId, { limit: 1000 });
   const exact = iterations.filter((i) => i.name === value);
   const candidates = exact.length > 0 ? exact : iterations.filter((i) => i.name.includes(value));
 
@@ -761,7 +801,7 @@ export async function issueUpdateCommand(
     changeSummary.push(`描述: <${options.description.length} 字符>`);
   }
   if (options.status) {
-    updateData.status_id = resolveStatusId(options.status);
+    updateData.status_id = await resolveStatusId(businessService, projectId, options.status);
     changeSummary.push(`状态: ${options.status} -> ${updateData.status_id}`);
   }
   if (options.assigned) {
@@ -1012,9 +1052,26 @@ function buildOptionFieldSpecs(
     {
       label: '状态',
       aliases: ['status'],
-      source: 'static',
-      description: '固定枚举',
-      staticOptions: mapToOptions(STATUS_NAME_TO_ID),
+      source: 'dynamic',
+      description: '项目状态配置（标注适用工作项类型）',
+      load: async () => {
+        const statuses = await businessService.getProjectStatuses(projectId);
+        const merged = new Map<number, { name: string; trackers: Set<number> }>();
+        statuses.forEach((s) => {
+          const existing = merged.get(s.status_id);
+          if (existing) {
+            s.tracker_ids.forEach((t) => existing.trackers.add(t));
+          } else {
+            merged.set(s.status_id, { name: s.name, trackers: new Set(s.tracker_ids) });
+          }
+        });
+        return [...merged.entries()].map(([id, { name, trackers }]) => {
+          const trackerLabel = [...trackers]
+            .map((t) => TRACKER_ID_TO_NAME[t] || String(t))
+            .join('/');
+          return { id, name: trackerLabel ? `${name}（${trackerLabel}）` : name };
+        });
+      },
     },
     {
       label: '优先级',
@@ -1169,4 +1226,707 @@ export async function issueOptionsCommand(
   logger.info(`${spec.label}（${spec.aliases.join('/')}）可选项：`);
   const nameWidth = Math.max(...options.map((o) => displayWidth(o.name)));
   options.forEach((o) => logger.info(`  ${padCell(o.name, nameWidth + 4)}${o.id}`));
+}
+
+// ==================== list ====================
+
+export interface IssueListOptions {
+  keyword?: string; // 标题关键字
+  type?: string; // 工作项类型，逗号分隔
+  status?: string; // 状态，逗号分隔
+  assigned?: string; // 处理人，逗号分隔，支持 my 表示当前用户
+  creator?: string; // 创建人，逗号分隔，支持 my 表示当前用户
+  developer?: string; // 开发人员，逗号分隔，支持 my 表示当前用户
+  iteration?: string; // 迭代名称或 ID，逗号分隔
+  priority?: string; // 优先级，逗号分隔
+  severity?: string; // 重要程度，逗号分隔
+  domain?: string; // 领域，逗号分隔
+  module?: string; // 模块，逗号分隔
+  field?: string[]; // 自定义字段过滤，格式 名称=值（可重复传入）
+  created?: string; // 创建时间区间，YYYY-MM-DD,YYYY-MM-DD
+  updated?: string; // 更新时间区间，YYYY-MM-DD,YYYY-MM-DD
+  limit?: string; // 返回条数上限，缺省取全量
+  meta?: string; // 元数据字段，逗号分隔，缺省 类型/状态/处理人/迭代/重要程度
+  quiet?: boolean; // 仅输出工作项 ID
+  count?: boolean; // 仅输出匹配条数
+  json?: boolean; // 以 JSON 格式输出
+}
+
+const TRACKER_NAME_TO_ID: Record<string, number> = {
+  bug: IssueTrackerId.BUG,
+  缺陷: IssueTrackerId.BUG,
+  task: IssueTrackerId.TASK,
+  任务: IssueTrackerId.TASK,
+  story: IssueTrackerId.STORY,
+  需求: IssueTrackerId.STORY,
+  feature: IssueTrackerId.FEATURE,
+  特性: IssueTrackerId.FEATURE,
+  epic: IssueTrackerId.EPIC,
+  史诗: IssueTrackerId.EPIC,
+};
+
+// Epic/Feature 需使用各自的 query_type 才能命中，其余类型走 backlog
+type IssueQueryGroup = {
+  queryType: 'backlog' | 'epic' | 'feature';
+  trackerIds?: number[];
+};
+
+function buildTypeGroups(type?: string): IssueQueryGroup[] {
+  if (!type) {
+    return [{ queryType: 'backlog' }];
+  }
+  const trackerIds = resolveFilterEnumIds('工作项类型', type, TRACKER_NAME_TO_ID);
+  const backlogIds = trackerIds.filter(
+    (id) => id !== IssueTrackerId.EPIC && id !== IssueTrackerId.FEATURE
+  );
+  const groups: IssueQueryGroup[] = [];
+  if (backlogIds.length > 0) {
+    groups.push({ queryType: 'backlog', trackerIds: backlogIds });
+  }
+  if (trackerIds.includes(IssueTrackerId.FEATURE)) {
+    groups.push({ queryType: 'feature', trackerIds: [IssueTrackerId.FEATURE] });
+  }
+  if (trackerIds.includes(IssueTrackerId.EPIC)) {
+    groups.push({ queryType: 'epic', trackerIds: [IssueTrackerId.EPIC] });
+  }
+  return groups;
+}
+
+/**
+ * 解析状态筛选值为状态 ID 列表：以项目状态配置为准，数字 ID 直通，
+ * 同名状态在不同工作项类型下 ID 不同时展开为全部匹配 ID
+ */
+function resolveStatusFilterIds(statuses: ProjectIssueStatus[], value: string): number[] {
+  const ids = new Set<number>();
+  splitFilterValues(value).forEach((v) => {
+    if (isNumericString(v)) {
+      ids.add(Number(v.trim()));
+      return;
+    }
+    const matched = statuses.filter(
+      (s) => s.name === v || s.name.toLowerCase() === v.toLowerCase()
+    );
+    if (matched.length === 0) {
+      const names = [...new Set(statuses.map((s) => s.name))].join('、');
+      throw new Error(`未知状态 "${v}"，可用状态：${names} 或数字 ID`);
+    }
+    matched.forEach((s) => ids.add(s.status_id));
+  });
+  return [...ids];
+}
+
+// 默认输出的元数据字段
+const DEFAULT_META_FIELDS = ['类型', '状态', '处理人', '迭代', '重要程度'];
+
+// 元数据字段范围与 issue options 的可查询字段一致（另含 类型）
+type IssueMetaFieldSpec = {
+  label: string;
+  aliases: string[];
+  extract: (issue: IssueItem) => string;
+};
+
+function buildMetaFieldSpecs(): IssueMetaFieldSpec[] {
+  const userName = (user?: { nick_name: string; name: string }): string =>
+    user ? user.nick_name || user.name || '' : '';
+  return [
+    {
+      label: '类型',
+      aliases: ['type', 'tracker', '工作项类型'],
+      extract: (issue) => issue.tracker?.name || '',
+    },
+    {
+      label: '状态',
+      aliases: ['status'],
+      extract: (issue) => issue.status?.name || '',
+    },
+    {
+      label: '处理人',
+      aliases: ['assigned', 'assignee'],
+      extract: (issue) => userName(issue.assigned_user),
+    },
+    {
+      label: '开发人员',
+      aliases: ['developer', 'dev'],
+      extract: (issue) => userName(issue.developer),
+    },
+    {
+      label: '迭代',
+      aliases: ['iteration'],
+      extract: (issue) => issue.iteration?.name || '',
+    },
+    {
+      label: '优先级',
+      aliases: ['priority'],
+      extract: (issue) => issue.priority?.name || '',
+    },
+    {
+      label: '重要程度',
+      aliases: ['severity'],
+      extract: (issue) => issue.severity?.name || '',
+    },
+    {
+      label: '领域',
+      aliases: ['domain'],
+      extract: (issue) => issue.domain?.name || '',
+    },
+    {
+      label: '模块',
+      aliases: ['module'],
+      extract: (issue) => issue.module?.name || '',
+    },
+    {
+      label: '父工作项',
+      aliases: ['parent'],
+      extract: (issue) =>
+        issue.parent_issue ? `${issue.parent_issue.name} (#${issue.parent_issue.id})` : '',
+    },
+    // 自定义字段值取自工作项数据，无需调用选项接口
+    ...Object.entries(CUSTOM_FIELD_NAME_TO_ID).map(([label, fieldId]) => ({
+      label,
+      aliases: [fieldId],
+      extract: (issue: IssueItem): string =>
+        issue.new_custom_fields?.find((f) => f.custom_field === fieldId)?.value || '',
+    })),
+  ];
+}
+
+function resolveMetaFieldSpecs(specs: IssueMetaFieldSpec[], input: string): IssueMetaFieldSpec[] {
+  const resolved = splitFilterValues(input).map((v) => {
+    const spec = specs.find(
+      (s) => s.label === v || s.aliases.some((a) => a.toLowerCase() === v.toLowerCase())
+    );
+    if (!spec) {
+      throw new Error(`未知元数据字段 "${v}"，可用字段：${specs.map((s) => s.label).join('、')}`);
+    }
+    return spec;
+  });
+  return [...new Map(resolved.map((s) => [s.label, s])).values()];
+}
+
+function splitFilterValues(value: string): string[] {
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+/**
+ * 解析逗号分隔的固定枚举筛选值（数字 ID 或名称），英文名称不区分大小写
+ */
+function resolveFilterEnumIds(
+  fieldLabel: string,
+  value: string,
+  nameMap: Record<string, number>
+): number[] {
+  return splitFilterValues(value).map((v) => {
+    if (isNumericString(v)) {
+      return Number(v.trim());
+    }
+    const id = nameMap[v] ?? nameMap[v.toLowerCase()];
+    if (id === undefined) {
+      throw new Error(
+        `未知${fieldLabel} "${v}"，支持：${Object.keys(nameMap).join('、')} 或数字 ID`
+      );
+    }
+    return id;
+  });
+}
+
+/**
+ * 解析逗号分隔的列表筛选值（数字 ID 或名称），名称精确匹配优先，其次包含匹配，
+ * 多个匹配项全部保留（筛选项之间为 OR 关系）
+ */
+function resolveFuzzyFilterIds(
+  candidates: Array<{ id: number; name: string }>,
+  fieldLabel: string,
+  value: string
+): number[] {
+  const ids = new Set<number>();
+  splitFilterValues(value).forEach((v) => {
+    if (isNumericString(v)) {
+      // 数字值优先按名称精确匹配（迭代等选项名可能为纯数字），无命中再按 ID 处理
+      const byName = candidates.filter((c) => c.name === v);
+      if (byName.length > 0) {
+        byName.forEach((c) => ids.add(c.id));
+      } else {
+        ids.add(Number(v.trim()));
+      }
+      return;
+    }
+    const exact = candidates.filter((c) => c.name === v);
+    const matched = exact.length > 0 ? exact : candidates.filter((c) => c.name.includes(v));
+    if (matched.length === 0) {
+      throw new Error(
+        `未找到${fieldLabel} "${v}"，可用选项：${candidates.map((c) => c.name).join('、')}`
+      );
+    }
+    matched.forEach((c) => ids.add(c.id));
+  });
+  return [...ids];
+}
+
+/**
+ * 将成员筛选值（昵称/用户名/数字 ID/my）解析为列表接口所需的成员 uuid，
+ * my 解析为当前用户 uuid（myUserId）
+ */
+function resolveMemberUuids(
+  members: ProjectMember[],
+  fieldLabel: string,
+  value: string,
+  myUserId?: string
+): string[] {
+  return splitFilterValues(value).map((v) => {
+    if (myUserId && v.toLowerCase() === 'my') {
+      return myUserId;
+    }
+    let candidates: ProjectMember[];
+    if (isNumericString(v)) {
+      candidates = members.filter((m) => m.user_num_id === Number(v.trim()));
+      if (candidates.length === 0) {
+        throw new Error(`${fieldLabel} "${v}" 不是项目成员的数字 ID`);
+      }
+    } else {
+      const exact = members.filter((m) => m.nick_name === v || m.user_name === v);
+      candidates =
+        exact.length > 0
+          ? exact
+          : members.filter(
+              (m) => (m.nick_name || '').includes(v) || (m.user_name || '').includes(v)
+            );
+      if (candidates.length === 0) {
+        throw new Error(`未找到${fieldLabel} "${v}" 对应的项目成员`);
+      }
+      if (candidates.length > 1) {
+        const names = candidates.map((m) => m.nick_name || m.user_name).join('、');
+        throw new Error(`${fieldLabel} "${v}" 匹配到多个成员：${names}，请改用成员数字 ID`);
+      }
+    }
+    return candidates[0].user_id;
+  });
+}
+
+// 时间区间一侧留空时的默认边界（接口要求毫秒时间戳，取远早/晚于项目存在期的值）
+const TIME_INTERVAL_EMPTY_START = '1000000000000';
+const TIME_INTERVAL_EMPTY_END = '9999999999999';
+
+/**
+ * 解析时间区间筛选值为接口要求的毫秒时间戳格式，入参支持 YYYY-MM-DD 或毫秒时间戳，一侧留空表示不设界
+ */
+function resolveTimeInterval(
+  businessService: BusinessService,
+  fieldLabel: string,
+  value: string
+): string {
+  const parts = value.split(',');
+  if (parts.length !== 2) {
+    throw new Error(`${fieldLabel}区间格式应为 YYYY-MM-DD,YYYY-MM-DD，收到 "${value}"`);
+  }
+  return parts
+    .map((part, index) => {
+      const v = part.trim();
+      if (v === '') {
+        return index === 0 ? TIME_INTERVAL_EMPTY_START : TIME_INTERVAL_EMPTY_END;
+      }
+      if (/^\d+$/.test(v)) {
+        return v;
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        const timestamp = businessService.parseDateToTimestamp(v);
+        if (timestamp !== null) {
+          return String(timestamp);
+        }
+      }
+      throw new Error(`${fieldLabel}区间的时间 "${v}" 无效，应为 YYYY-MM-DD 或毫秒时间戳`);
+    })
+    .join(',');
+}
+
+export async function issueListCommand(
+  options: IssueListOptions,
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  if (options.count && options.quiet) {
+    throw new Error('--count 与 --quiet 不能同时使用');
+  }
+
+  const { projectId, config, outputFormat } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const request: ListIssuesV4Request = {};
+
+  if (options.keyword) {
+    request.subject = options.keyword;
+  }
+  if (options.priority) {
+    request.priority_ids = resolveFilterEnumIds('优先级', options.priority, PRIORITY_NAME_TO_ID);
+  }
+  if (options.severity) {
+    request.severity_ids = resolveFilterEnumIds('重要程度', options.severity, SEVERITY_NAME_TO_ID);
+  }
+
+  let limitNum: number | undefined;
+  if (options.limit !== undefined) {
+    limitNum = resolveNumber('返回条数上限', options.limit);
+    if (!Number.isInteger(limitNum) || limitNum <= 0) {
+      throw new Error(`返回条数上限应为正整数，收到 "${options.limit}"`);
+    }
+  }
+
+  // Epic/Feature 需各自的 query_type 才能命中，混合类型筛选时拆分为多次查询
+  const typeGroups = buildTypeGroups(options.type);
+
+  // 筛选解析所需的选项数据一次性并行获取
+  const needMembers = Boolean(options.assigned || options.creator || options.developer);
+  const usesMy = [options.assigned, options.creator, options.developer].some(
+    (v) => v !== undefined && splitFilterValues(v).some((x) => x.toLowerCase() === 'my')
+  );
+  const [members, currentUser, iterations, domains, modules, statuses] = await Promise.all([
+    needMembers ? businessService.getMembers(projectId) : Promise.resolve([]),
+    usesMy ? businessService.getCurrentUser() : Promise.resolve(undefined),
+    options.iteration
+      ? businessService.getIterations(projectId, { limit: 1000 })
+      : Promise.resolve([]),
+    options.domain ? businessService.getProjectDomains(projectId) : Promise.resolve([]),
+    options.module ? businessService.getProjectModules(projectId) : Promise.resolve([]),
+    options.status ? businessService.getProjectStatuses(projectId) : Promise.resolve([]),
+  ]);
+  const myUserId = currentUser?.user_id;
+
+  if (options.assigned) {
+    request.assigned_ids = resolveMemberUuids(members, '处理人', options.assigned, myUserId);
+  }
+  if (options.creator) {
+    request.creator_ids = resolveMemberUuids(members, '创建人', options.creator, myUserId);
+  }
+  if (options.developer) {
+    request.developer_ids = resolveMemberUuids(members, '开发人员', options.developer, myUserId);
+  }
+  if (options.status) {
+    request.status_ids = resolveStatusFilterIds(statuses, options.status);
+  }
+  if (options.iteration) {
+    request.iteration_ids = resolveFuzzyFilterIds(iterations, '迭代', options.iteration);
+  }
+  if (options.domain) {
+    request.domain_ids = resolveFuzzyFilterIds(domains, '领域', options.domain);
+  }
+  if (options.module) {
+    request.module_ids = resolveFuzzyFilterIds(modules, '模块', options.module);
+  }
+
+  if (options.field && options.field.length > 0) {
+    request.custom_fields = options.field.map((entry) => {
+      const parsed = parseCustomFieldUpdate(businessService, entry);
+      return { custom_field: parsed.custom_field, value: parsed.value };
+    });
+  }
+  if (options.created) {
+    request.created_time_interval = resolveTimeInterval(
+      businessService,
+      '创建时间',
+      options.created
+    );
+  }
+  if (options.updated) {
+    request.updated_time_interval = resolveTimeInterval(
+      businessService,
+      '更新时间',
+      options.updated
+    );
+  }
+  if (limitNum !== undefined) {
+    request.limit = limitNum;
+  }
+
+  const queries = typeGroups.map((group) => ({
+    ...request,
+    query_type: group.queryType,
+    ...(group.trackerIds ? { tracker_ids: group.trackerIds } : {}),
+  }));
+
+  if (options.count) {
+    const spinner = ora('正在统计工作项数量...').start();
+    let total = 0;
+    try {
+      for (const query of queries) {
+        total += await businessService.countIssues(projectId, query);
+      }
+      spinner.stop();
+    } catch (error: unknown) {
+      spinner.fail('统计工作项数量失败');
+      throw error;
+    }
+    logger.info(String(total));
+    return;
+  }
+
+  const spinner = ora(
+    queries.length > 1
+      ? `正在查询工作项列表（按工作项类型分 ${queries.length} 次查询）...`
+      : '正在查询工作项列表...'
+  ).start();
+  let issues: IssueItem[] = [];
+  try {
+    for (const query of queries) {
+      issues.push(...(await businessService.listIssues(projectId, query)));
+    }
+    spinner.stop();
+  } catch (error: unknown) {
+    spinner.fail('查询工作项列表失败');
+    throw error;
+  }
+
+  // limit 是输出总条数上限，多组查询合并后统一截断
+  if (limitNum !== undefined) {
+    issues = issues.slice(0, limitNum);
+  }
+
+  if (options.json || outputFormat === 'json') {
+    logger.json(issues);
+    return;
+  }
+
+  if (options.quiet) {
+    issues.forEach((issue) => logger.info(String(issue.id)));
+    return;
+  }
+
+  if (issues.length === 0) {
+    logger.warn('未找到匹配的工作项');
+    return;
+  }
+
+  const metaFields = options.meta
+    ? resolveMetaFieldSpecs(buildMetaFieldSpecs(), options.meta)
+    : buildMetaFieldSpecs().filter((s) => DEFAULT_META_FIELDS.includes(s.label));
+
+  issues.forEach((issue) => {
+    logger.info(pc.bold(`#${issue.id}  ${issue.name}`));
+    const parts = metaFields
+      .map((spec) => ({ label: spec.label, value: spec.extract(issue) }))
+      .filter((p) => p.value);
+    if (parts.length > 0) {
+      logger.info(pc.gray(`  ${parts.map((p) => `${p.label} ${p.value}`).join(' · ')}`));
+    }
+    logger.info(pc.gray(`  ${issueLink(projectId, issue.id)}`));
+  });
+  logger.info(`共 ${issues.length} 条`);
+}
+
+// ==================== comments ====================
+
+export interface IssueCommentsOptions {
+  last?: string; // 只显示最近 N 条
+  json?: boolean; // 以 JSON 格式输出
+}
+
+export async function issueCommentsCommand(
+  issueId: string,
+  options: IssueCommentsOptions,
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  const id = parseInt(issueId, 10);
+  if (isNaN(id) || id <= 0) {
+    throw new Error(`无效的工作项 ID "${issueId}"`);
+  }
+  let last: number | undefined;
+  if (options.last !== undefined) {
+    last = resolveNumber('评论条数', options.last);
+    if (!Number.isInteger(last) || last <= 0) {
+      throw new Error(`评论条数应为正整数，收到 "${options.last}"`);
+    }
+  }
+
+  const { projectId, config, outputFormat } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const spinner = ora('正在查询工作项评论...').start();
+  let issueName = '';
+  let comments: IssueCommentV4[] = [];
+  try {
+    const detail = await businessService.getIssueDetail(projectId, id);
+    issueName = detail.name;
+    comments = await businessService.getIssueComments(projectId, id);
+    spinner.stop();
+  } catch (error: unknown) {
+    spinner.fail('查询工作项评论失败');
+    throw error;
+  }
+
+  if (options.json || outputFormat === 'json') {
+    logger.json(comments);
+    return;
+  }
+
+  const shown = last !== undefined ? comments.slice(-last) : comments;
+  const titleNote =
+    last !== undefined && shown.length < comments.length ? `，显示最近 ${shown.length} 条` : '';
+  logger.info(
+    pc.bold(`#${id}  ${issueName}`) + pc.gray(`（评论 ${comments.length} 条${titleNote}）`)
+  );
+  if (shown.length === 0) {
+    logger.info(pc.gray('  无评论'));
+    return;
+  }
+  shown.forEach((c) => {
+    const time = formatTimestamp(c.timestamp);
+    const author = c.user?.nick_name || c.user?.user_name || '匿名';
+    const text = renderHtmlText(c.comment, new Map());
+    logger.info(pc.gray(`  [${time}] ${author}: ${text}`));
+  });
+}
+
+// ==================== create ====================
+
+export interface IssueCreateOptions {
+  type: string; // 工作项类型名称或 ID（必填）
+  name: string; // 标题（必填）
+  description?: string; // 描述（支持 HTML）
+  status?: string; // 状态名称或 ID
+  assigned?: string; // 处理人昵称/用户名/数字 ID
+  developer?: string; // 开发人员昵称/用户名/数字 ID
+  iteration?: string; // 迭代名称或 ID
+  priority?: string; // 优先级：低/中/高 或数字 ID
+  severity?: string; // 重要程度：关键/重要/一般/提示 或数字 ID
+  domain?: string; // 领域名称或数字 ID
+  module?: string; // 模块名称或数字 ID
+  parent?: string; // 父工作项 ID
+  begin?: string; // 预计开始时间，YYYY-MM-DD
+  end?: string; // 预计结束时间，YYYY-MM-DD
+  doneRatio?: string; // 完成度 0-100
+  expectedWorkHours?: string; // 预计工时
+  actualWorkHours?: string; // 实际工时
+  field?: string[]; // 自定义字段，格式 名称=值（可重复传入）
+}
+
+export async function issueCreateCommand(
+  options: IssueCreateOptions,
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const trackerIds = resolveFilterEnumIds('工作项类型', options.type, TRACKER_NAME_TO_ID);
+  if (trackerIds.length > 1) {
+    throw new Error('工作项类型只能指定一个');
+  }
+
+  const createData: UpdateIssueRequest = {
+    name: options.name,
+    tracker_id: trackerIds[0],
+  };
+  const changeSummary: string[] = [`类型: ${options.type}`, `标题: ${options.name}`];
+
+  if (options.description) {
+    createData.description = options.description;
+    changeSummary.push(`描述: <${options.description.length} 字符>`);
+  }
+  if (options.status) {
+    createData.status_id = await resolveStatusId(businessService, projectId, options.status);
+    changeSummary.push(`状态: ${options.status} -> ${createData.status_id}`);
+  }
+  if (options.assigned) {
+    createData.assigned_id = await resolveMemberId(
+      businessService,
+      projectId,
+      '处理人',
+      options.assigned
+    );
+    changeSummary.push(`处理人: ${options.assigned} -> ${createData.assigned_id}`);
+  }
+  if (options.developer) {
+    createData.developer_id = await resolveMemberId(
+      businessService,
+      projectId,
+      '开发人员',
+      options.developer
+    );
+    changeSummary.push(`开发人员: ${options.developer} -> ${createData.developer_id}`);
+  }
+  if (options.iteration) {
+    createData.iteration_id = await resolveIterationId(
+      businessService,
+      projectId,
+      options.iteration
+    );
+    changeSummary.push(`迭代: ${options.iteration} -> ${createData.iteration_id}`);
+  }
+  if (options.priority) {
+    createData.priority_id = resolveEnumId(options.priority, PRIORITY_NAME_TO_ID, '优先级');
+    changeSummary.push(`优先级: ${options.priority} -> ${createData.priority_id}`);
+  }
+  if (options.severity) {
+    createData.severity_id = resolveEnumId(options.severity, SEVERITY_NAME_TO_ID, '重要程度');
+    changeSummary.push(`重要程度: ${options.severity} -> ${createData.severity_id}`);
+  }
+  if (options.domain) {
+    createData.domain_id = await resolveOptionId(
+      businessService,
+      projectId,
+      '领域',
+      options.domain,
+      () => businessService.getProjectDomains(projectId)
+    );
+    changeSummary.push(`领域: ${options.domain} -> ${createData.domain_id}`);
+  }
+  if (options.module) {
+    createData.module_id = await resolveOptionId(
+      businessService,
+      projectId,
+      '模块',
+      options.module,
+      () => businessService.getProjectModules(projectId)
+    );
+    changeSummary.push(`模块: ${options.module} -> ${createData.module_id}`);
+  }
+  if (options.parent) {
+    createData.parent_issue_id = resolveNumericId('父工作项', options.parent);
+    changeSummary.push(`父工作项 ID: ${createData.parent_issue_id}`);
+  }
+  if (options.begin) {
+    assertDateFormat('预计开始时间', options.begin);
+    createData.begin_time = options.begin;
+    changeSummary.push(`预计开始: ${options.begin}`);
+  }
+  if (options.end) {
+    assertDateFormat('预计结束时间', options.end);
+    createData.end_time = options.end;
+    changeSummary.push(`预计结束: ${options.end}`);
+  }
+  if (options.doneRatio) {
+    const ratio = resolveNumber('完成度', options.doneRatio);
+    if (ratio < 0 || ratio > 100) {
+      throw new Error(`完成度应在 0-100 之间，收到 "${options.doneRatio}"`);
+    }
+    createData.done_ratio = ratio;
+    changeSummary.push(`完成度: ${ratio}`);
+  }
+  if (options.expectedWorkHours) {
+    createData.expected_work_hours = resolveNumber('预计工时', options.expectedWorkHours);
+    changeSummary.push(`预计工时: ${createData.expected_work_hours}`);
+  }
+  if (options.actualWorkHours) {
+    createData.actual_work_hours = resolveNumber('实际工时', options.actualWorkHours);
+    changeSummary.push(`实际工时: ${createData.actual_work_hours}`);
+  }
+  if (options.field && options.field.length > 0) {
+    const customFields = options.field.map((entry) =>
+      parseCustomFieldUpdate(businessService, entry)
+    );
+    createData.new_custom_fields = customFields;
+    customFields.forEach((f) => changeSummary.push(`${f.field_name}: ${f.value}`));
+  }
+
+  const spinner = ora('正在创建工作项...').start();
+  let created: CreateIssueV4Response;
+  try {
+    created = await businessService.createIssue(projectId, createData);
+    spinner.succeed(`创建成功：#${created.id} ${created.name}`);
+  } catch (error: unknown) {
+    spinner.fail('创建工作项失败');
+    throw error;
+  }
+
+  changeSummary.forEach((line) => logger.info(`  ${line}`));
+  logger.info(`  ${issueLink(projectId, created.id)}`);
 }

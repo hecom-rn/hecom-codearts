@@ -6,6 +6,7 @@ import {
   CustomField,
   CustomFieldId,
   CurrentUserInfo,
+  CreateIssueV4Response,
   HuaweiCloudConfig,
   IssueAccessory,
   IssueCommentV4,
@@ -17,6 +18,8 @@ import {
   IssueTrackerId,
   IssueWorkHour,
   IterationInfo,
+  ListIssuesV4Request,
+  ProjectIssueStatus,
   ProjectMember,
   ProjectModule,
   ProjectRole,
@@ -528,6 +531,25 @@ export class BusinessService {
   }
 
   /**
+   * 创建工作项（CreateIssueV4）
+   * @param projectId 项目ID
+   * @param issueData 工作项字段（tracker_id 与 name 必填）
+   * @returns 新创建工作项的 ID 与标题
+   */
+  async createIssue(
+    projectId: string,
+    issueData: UpdateIssueRequest
+  ): Promise<CreateIssueV4Response> {
+    const response = await this.apiService.createIssue(projectId, issueData);
+
+    if (!response.success || !response.data) {
+      throw new Error(`创建工作项失败: ${response.error || '未知错误'}`);
+    }
+
+    return response.data;
+  }
+
+  /**
    * 查询指定用户在指定时间段内的所有工时统计（按人和领域分组）
    * @param projectId 项目ID
    * @param userIds 用户ID列表
@@ -731,6 +753,62 @@ export class BusinessService {
     }
 
     return response.data.projects;
+  }
+
+  /**
+   * 按筛选条件分页获取工作项列表（ListIssuesV4），默认取全量
+   * @param projectId 项目ID
+   * @param params 筛选条件；params.limit 同时作为返回总条数上限
+   * @returns 工作项列表
+   */
+  async listIssues(projectId: string, params: ListIssuesV4Request = {}): Promise<IssueItem[]> {
+    const pageSize = 100;
+    const maxCount = params.limit && params.limit > 0 ? params.limit : Infinity;
+    const allIssues: IssueItem[] = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore && allIssues.length < maxCount) {
+      const issuesResponse = await this.apiService.getIssues(projectId, {
+        include_deleted: false,
+        ...params,
+        limit: pageSize,
+        offset,
+      });
+
+      if (!issuesResponse.success) {
+        throw new Error(`获取工作项列表失败: ${issuesResponse.error || '未知错误'}`);
+      }
+
+      const issues = issuesResponse.data?.issues || [];
+      allIssues.push(...issues);
+
+      const total = issuesResponse.data?.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allIssues.length > maxCount ? allIssues.slice(0, maxCount) : allIssues;
+  }
+
+  /**
+   * 按筛选条件统计工作项数量（取分页响应的 total，不拉取全量）
+   * @param projectId 项目ID
+   * @param params 筛选条件；params.limit 不生效
+   */
+  async countIssues(projectId: string, params: ListIssuesV4Request = {}): Promise<number> {
+    const response = await this.apiService.getIssues(projectId, {
+      include_deleted: false,
+      ...params,
+      limit: 1,
+      offset: 0,
+    });
+
+    if (!response.success) {
+      throw new Error(`获取工作项列表失败: ${response.error || '未知错误'}`);
+    }
+
+    return response.data?.total || 0;
   }
 
   /**
@@ -1096,6 +1174,31 @@ export class BusinessService {
   }
 
   /**
+   * 查询单个工作项的评论（按时间升序，分页获取全量）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   */
+  async getIssueComments(projectId: string, issueId: number): Promise<IssueCommentV4[]> {
+    const allComments: IssueCommentV4[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.apiService.getIssueComments(projectId, issueId, offset, pageSize);
+      if (!response.success || !response.data) {
+        throw new Error(`获取工作项评论失败: ${response.error || '未知错误'}`);
+      }
+      allComments.push(...(response.data.comments || []));
+      const total = response.data.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allComments.sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+  }
+
+  /**
    * 获取单个工作项详情，失败时抛出异常
    * @param projectId 项目ID
    * @param issueId 工作项ID
@@ -1106,6 +1209,39 @@ export class BusinessService {
       throw new Error(response.error || '未知错误');
     }
     return response.data;
+  }
+
+  /**
+   * 查询项目的状态配置列表（ListScrumProjectStatuses，分页获取全量）
+   * @param projectId 项目ID
+   * @param trackerId 工作项类型，可选过滤（2任务/3缺陷/5Epic/6Feature/7Story）
+   * @returns 状态列表，含状态数字 ID、名称与适用的工作项类型
+   */
+  async getProjectStatuses(projectId: string, trackerId?: number): Promise<ProjectIssueStatus[]> {
+    const allStatuses: ProjectIssueStatus[] = [];
+    const pageSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.apiService.getProjectStatuses(projectId, {
+        trackerId,
+        offset,
+        limit: pageSize,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(`获取项目状态列表失败: ${response.error || '未知错误'}`);
+      }
+
+      allStatuses.push(...(response.data.issue_statuses || []));
+
+      const total = response.data.total || 0;
+      offset += pageSize;
+      hasMore = offset < total;
+    }
+
+    return allStatuses;
   }
 
   /**

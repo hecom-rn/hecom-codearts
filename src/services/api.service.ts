@@ -7,6 +7,7 @@ import {
   ApiResponse,
   CachedToken,
   CurrentUserInfo,
+  CreateIssueV4Response,
   GetCustomFieldsResponse,
   HuaweiCloudConfig,
   IamTokenRequest,
@@ -22,6 +23,7 @@ import {
   ListProjectIterationsV4Request,
   ListProjectIterationsV4Response,
   ListProjectModulesResponse,
+  ListScrumProjectStatusesResponse,
   ListWorkHoursTypeResponse,
   ProjectListResponse,
   ProjectMemberListResponse,
@@ -567,7 +569,7 @@ export class ApiService {
   async createIssue(
     projectId: string,
     issueData: UpdateIssueRequest
-  ): Promise<ApiResponse<unknown>> {
+  ): Promise<ApiResponse<CreateIssueV4Response>> {
     return this.request(`/v4/projects/${projectId}/issue`, {
       method: 'POST',
       data: issueData,
@@ -626,6 +628,24 @@ export class ApiService {
   async getIterationById(projectId: string, iterationId: string): Promise<ApiResponse<unknown>> {
     return this.request(`/v4/projects/${projectId}/iterations/${iterationId}`, {
       method: 'GET',
+    });
+  }
+
+  /**
+   * 查询 Scrum 项目的状态列表 (ListScrumProjectStatuses)
+   * @param params.trackerId 按工作项类型过滤（2任务/3缺陷/5Epic/6Feature/7Story）
+   */
+  async getProjectStatuses(
+    projectId: string,
+    params?: { trackerId?: number; offset?: number; limit?: number }
+  ): Promise<ApiResponse<ListScrumProjectStatusesResponse>> {
+    return this.request(`/v4/projects/${projectId}/statuses`, {
+      method: 'GET',
+      params: {
+        offset: params?.offset ?? 0,
+        limit: params?.limit ?? 100,
+        tracker_id: params?.trackerId,
+      },
     });
   }
 

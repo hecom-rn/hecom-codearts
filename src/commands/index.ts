@@ -4,7 +4,10 @@ export { dailyCommand } from './daily.command';
 export { fixCommand } from './fix.command';
 export {
   issueAddNoteCommand,
+  issueCommentsCommand,
+  issueCreateCommand,
   issueDetailCommand,
+  issueListCommand,
   issueOptionsCommand,
   issueUpdateCommand,
   issueWorkHourCommand,

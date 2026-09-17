@@ -327,6 +327,7 @@ export enum IssueStatusId {
   NEW_ISSUE = 17, // 新问题
   CONVERTED_TO_REQUIREMENT = 18, // 转需求
   PENDING_TEST = 19, // 待测试
+  SUSPENDED = 20, // 挂起
 }
 
 export interface IssueTracker {
@@ -403,6 +404,25 @@ export interface ListIssuesV4Response {
   total: number; // 总数
 }
 
+// 项目状态相关类型 (ListScrumProjectStatuses)
+export interface ProjectIssueStatusAttribute {
+  id: number; // 状态属性id
+  name: string; // 状态属性名称（开始态/进行态/结束态）
+}
+
+export interface ProjectIssueStatus {
+  id: string; // 状态UUID
+  status_id: number; // 状态数字id
+  name: string; // 状态名称
+  tracker_ids: number[]; // 适用的工作项类型id列表
+  status_attribute?: ProjectIssueStatusAttribute; // 状态属性
+}
+
+export interface ListScrumProjectStatusesResponse {
+  total: number; // 总数
+  issue_statuses: ProjectIssueStatus[]; // 状态列表
+}
+
 // 项目迭代相关类型 (ListProjectIterationsV4)
 export interface ListProjectIterationsV4Request {
   updated_time_interval?: string; // 更新迭代的时间（查询的起始时间,查询的结束时间）
@@ -460,6 +480,12 @@ export interface UpdateIssueRequest {
   status_id?: number; // 状态id
   tracker_id?: number; // 工作项类型id
   new_custom_fields?: IssueNewCustomField[]; // 自定义属性值
+}
+
+// 创建工作项响应 (CreateIssueV4，返回与工作项详情同构的对象，此处仅声明所用字段)
+export interface CreateIssueV4Response {
+  id: number; // 新创建工作项的ID
+  name: string; // 标题
 }
 
 export interface ListChildIssuesV4Response {
