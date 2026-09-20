@@ -184,12 +184,40 @@ storyCmd
 // issue 命令组
 const issueCmd = program.command('issue').description('工作项查询与维护');
 
+issueCmd.addHelpText(
+  'after',
+  [
+    '',
+    '推荐流程（面向 Agent/脚本调用）：',
+    '  1. 用 issue options 查询字段可用取值（状态/迭代/模块/领域/自定义字段等），再调用 list/create/update',
+    '  2. 机器解析输出时加 --json（输出纯 JSON，无 loading 等附加文案）；只要 ID 用 -q；只要条数用 --count',
+    '',
+    '示例：',
+    '  $ codearts issue options                    # 列出全部可查询字段',
+    '  $ codearts issue options status             # 查看状态可用取值及适用工作项类型',
+    '  $ codearts issue list -t task -i 2608,2609 -a my -l 状态,迭代 --json',
+    '  $ codearts issue detail <id> --no-download',
+    '  $ codearts issue update <id> --status 已解决',
+    '  $ codearts issue create -t task -n "任务标题" --iteration <迭代名或ID>',
+  ].join('\n')
+);
+
 issueCmd
   .command('detail <ids...>')
   .description('查询工作项详情，支持多个 ID 和可选评论查询，自动下载内容中的图片')
   .option('-c, --with-comments', '同时查询每个工作项的评论')
   .option('--no-download', '跳过图片和附件下载')
   .option('--json', '输出原始接口的完整 JSON（跳过图片/附件下载）')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue detail <id>',
+      '  $ codearts issue detail <id1> <id2> -c --no-download',
+      '  $ codearts issue detail <id> --json',
+    ].join('\n')
+  )
   .action(async (ids, options, command) => {
     const cliOptions = {
       ...command.parent.parent.opts(),
@@ -243,6 +271,23 @@ issueCmd
   .option('-q, --quiet', '仅输出工作项 ID，每行一个（便于管道组合其他命令）')
   .option('--count', '仅输出匹配条数，不拉取列表（忽略 --limit）')
   .option('--json', '以 JSON 格式输出工作项数据')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue list -t task -i 2608,2609 -a 白宇东 -l 状态,迭代',
+      '  $ codearts issue list -t bug --status 新问题,进行中 -i 2609 --json',
+      '  $ codearts issue list -k "登录" --count',
+      '  $ codearts issue list -t bug -f 产品模块=APP -q',
+      '  $ codearts issue list -a my --updated 2026-09-01, --count',
+      '',
+      '提示：',
+      '  迭代/状态/模块/领域/自定义字段的取值不确定时，先用 issue options <字段> 查询可用取值',
+      '  -a/--creator/-d 支持 my 表示当前用户；迭代支持名称模糊匹配，逗号分隔多个',
+      '  自定义字段 -f 传错值不会报错，只会返回空结果，取值务必先通过 issue options 确认',
+    ].join('\n')
+  )
   .action(async (options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -259,6 +304,15 @@ issueCmd
   .description('查询工作项评论，按时间正序输出')
   .option('-n, --last <n>', '只显示最近 N 条')
   .option('--json', '以 JSON 格式输出评论数据')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue comments <id> -n 5',
+      '  $ codearts issue comments <id> --json',
+    ].join('\n')
+  )
   .action(async (id, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -297,6 +351,19 @@ issueCmd
     (value: string, previous: string[]) => [...(previous || []), value],
     []
   )
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue create -t task -n "任务标题" --iteration <迭代名或ID> --assigned 白宇东',
+      '  $ codearts issue create -t bug -n "Bug 标题" --priority 高 -f 终端类型=手机端',
+      '',
+      '提示：',
+      '  Bug 类型必须带 --priority（低/中/高）',
+      '  状态/迭代/处理人/自定义字段等取值不确定时，先用 issue options <字段> 查询可用取值',
+    ].join('\n')
+  )
   .action(async (options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -311,6 +378,7 @@ issueCmd
 issueCmd
   .command('addNote <id> <notes>')
   .description('为工作项添加评论，内容支持 HTML')
+  .addHelpText('after', ['', '示例：', '  $ codearts issue addNote <id> "评论内容"'].join('\n'))
   .action(async (id, notes, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -328,6 +396,18 @@ issueCmd
   .option('-t, --type <名称或ID>', '工时类型名称或 ID（如：后端开发）')
   .option('--start <date>', '开始日期 YYYY-MM-DD（默认当天）')
   .option('--end <date>', '结束日期 YYYY-MM-DD（默认与开始日期一致）')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue workhour <id> 8 -t 后端开发',
+      '  $ codearts issue workhour <id> 4 --start 2026-09-18 --end 2026-09-19',
+      '',
+      '提示：',
+      '  工时类型取值不确定时，先通过项目配置或接口确认（未指定类型时不传 -t）',
+    ].join('\n')
+  )
   .action(async (id, hours, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
@@ -344,8 +424,26 @@ issueCmd
   .description(
     '查询字段可用的选项，支持系统字段与自定义字段（如：状态、status、缺陷分析；不带字段时列出全部可查询字段）'
   )
+  .addHelpText(
+    'after',
+    [
+      '',
+      '调用 list/create/update 前先用本命令确认字段取值，可避免传错值静默返回空结果：',
+      '',
+      '示例：',
+      '  $ codearts issue options               # 列出全部可查询字段（含别名与说明）',
+      '  $ codearts issue options status        # 状态可用取值（标注适用工作项类型）',
+      '  $ codearts issue options iteration     # 迭代列表（名称与 ID）',
+      '  $ codearts issue options 产品模块       # 自定义字段可选值（自由文本字段会提示无固定选项）',
+      '  $ codearts issue options --json',
+    ].join('\n')
+  )
+  .option('--json', '以 JSON 格式输出')
   .action(async (field, options, command) => {
-    const cliOptions = command.parent.parent.opts();
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      json: options.json,
+    };
     logger.setOutputFormat(cliOptions.output);
     try {
       await issueOptionsCommand(field, cliOptions);
@@ -379,6 +477,20 @@ issueCmd
     '自定义字段，如：-f 产品模块=APP（可重复传入）',
     (value: string, previous: string[]) => [...(previous || []), value],
     []
+  )
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue update <id> --status 已解决',
+      '  $ codearts issue update <id> --iteration <迭代名或ID> --assigned 白宇东 -f 产品模块=APP',
+      '  $ codearts issue update <id> -f 缺陷技术分析="空指针异常" -f AI相关=否',
+      '',
+      '提示：',
+      '  至少提供一个要更新的字段；-f 名称=值 可重复传入',
+      '  状态/迭代/处理人/自定义字段等取值不确定时，先用 issue options <字段> 查询可用取值',
+    ].join('\n')
   )
   .action(async (id, options, command) => {
     const cliOptions = command.parent.parent.opts();

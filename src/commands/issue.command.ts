@@ -1,4 +1,3 @@
-import ora from 'ora';
 import pc from 'picocolors';
 import { BusinessService } from '../services/business.service';
 import {
@@ -18,6 +17,7 @@ import {
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
 import { logger } from '../utils/logger';
+import { createSpinner } from '../utils/spinner';
 
 // ==================== detail ====================
 
@@ -395,7 +395,7 @@ export async function issueDetailCommand(
 
   // --json：输出原始接口的完整 JSON，跳过图片/附件下载等加工步骤
   if (cliOptions.json) {
-    const spinner = ora('正在查询工作项详情...').start();
+    const spinner = createSpinner('正在查询工作项详情...').start();
     const details = await fetchRawIssueDetails(businessService, projectId, issueIds);
     if (withComments) {
       const commentMap = await businessService.getIssueCommentsBatch(projectId, issueIds);
@@ -411,7 +411,7 @@ export async function issueDetailCommand(
     return;
   }
 
-  const spinner = ora('正在查询工作项详情...').start();
+  const spinner = createSpinner('正在查询工作项详情...').start();
   const details = await businessService.getIssueDetails(projectId, issueIds, 10);
   spinner.stop();
 
@@ -425,7 +425,7 @@ export async function issueDetailCommand(
   });
 
   if (withComments) {
-    const commentSpinner = ora('正在查询评论...').start();
+    const commentSpinner = createSpinner('正在查询评论...').start();
     const commentResults = await businessService.getIssueCommentsBatch(
       projectId,
       results.filter((r) => r.success).map((r) => r.id)
@@ -447,7 +447,7 @@ export async function issueDetailCommand(
   }
 
   if (!cliOptions.noDownload) {
-    const imageSpinner = ora('正在解析并下载工作项图片...').start();
+    const imageSpinner = createSpinner('正在解析并下载工作项图片...').start();
     const { total, failed } = await downloadIssueImages(businessService, projectId, results);
     if (total > 0) {
       imageSpinner.succeed(
@@ -457,7 +457,7 @@ export async function issueDetailCommand(
       imageSpinner.stop();
     }
 
-    const attachmentSpinner = ora('正在下载工作项附件...').start();
+    const attachmentSpinner = createSpinner('正在下载工作项附件...').start();
     const attachmentStats = await downloadIssueAttachments(businessService, projectId, results);
     if (attachmentStats.total > 0) {
       attachmentSpinner.succeed(
@@ -491,7 +491,7 @@ export async function issueAddNoteCommand(
   const { projectId, config } = loadConfig(cliOptions);
   const businessService = new BusinessService(config);
 
-  const spinner = ora(`正在为工作项 ${issueId} 添加评论...`).start();
+  const spinner = createSpinner(`正在为工作项 ${issueId} 添加评论...`).start();
   try {
     await businessService.addIssueNote(projectId, parseInt(issueId, 10), notes);
     spinner.succeed('评论添加成功');
@@ -906,7 +906,7 @@ export async function issueUpdateCommand(
     return;
   }
 
-  const checkSpinner = ora(`正在校验工作项 ${issueId}...`).start();
+  const checkSpinner = createSpinner(`正在校验工作项 ${issueId}...`).start();
   let issueName = '';
   try {
     const detail = await businessService.getIssueDetail(projectId, parseInt(issueId, 10));
@@ -917,7 +917,7 @@ export async function issueUpdateCommand(
     throw error;
   }
 
-  const spinner = ora('正在更新工作项...').start();
+  const spinner = createSpinner('正在更新工作项...').start();
   try {
     await businessService.updateIssue(projectId, issueId, updateData);
     spinner.succeed(`更新成功，共更新 ${changeSummary.length} 个字段`);
@@ -996,7 +996,7 @@ export async function issueWorkHourCommand(
     ? await resolveWorkHoursTypeId(businessService, projectId, options.type)
     : undefined;
 
-  const spinner = ora(`正在为工作项 ${issueId} 登记工时...`).start();
+  const spinner = createSpinner(`正在为工作项 ${issueId} 登记工时...`).start();
   let records;
   try {
     records = await businessService.addIssueWorkHour(projectId, parseInt(issueId, 10), hoursNum, {
@@ -1167,15 +1167,16 @@ function resolveOptionFieldSpec(specs: OptionFieldSpec[], input: string): Option
 
 export async function issueOptionsCommand(
   field: string | undefined,
-  cliOptions: CliOptions = {}
+  cliOptions: CliOptions & { json?: boolean } = {}
 ): Promise<void> {
   const { projectId, config, outputFormat } = loadConfig(cliOptions);
   const businessService = new BusinessService(config);
+  const useJson = cliOptions.json || outputFormat === 'json';
   const specs = buildOptionFieldSpecs(businessService, projectId);
 
   // 不带字段名时列出全部可查询字段
   if (!field) {
-    if (outputFormat === 'json') {
+    if (useJson) {
       logger.json(
         specs.map((s) => ({
           field: s.label,
@@ -1204,7 +1205,7 @@ export async function issueOptionsCommand(
   if (spec.source === 'custom' && spec.customFieldId) {
     const optionsMap = await businessService.getCustomFieldOptions(projectId, [spec.customFieldId]);
     const values = optionsMap[spec.customFieldId] || [];
-    if (outputFormat === 'json') {
+    if (useJson) {
       logger.json({ field: spec.label, options: values });
       return;
     }
@@ -1219,7 +1220,7 @@ export async function issueOptionsCommand(
 
   const options: FieldOption[] =
     spec.source === 'static' ? spec.staticOptions || [] : (await spec.load?.()) || [];
-  if (outputFormat === 'json') {
+  if (useJson) {
     logger.json({ field: spec.label, options });
     return;
   }
@@ -1645,7 +1646,7 @@ export async function issueListCommand(
   }));
 
   if (options.count) {
-    const spinner = ora('正在统计工作项数量...').start();
+    const spinner = createSpinner('正在统计工作项数量...').start();
     let total = 0;
     try {
       for (const query of queries) {
@@ -1660,7 +1661,7 @@ export async function issueListCommand(
     return;
   }
 
-  const spinner = ora(
+  const spinner = createSpinner(
     queries.length > 1
       ? `正在查询工作项列表（按工作项类型分 ${queries.length} 次查询）...`
       : '正在查询工作项列表...'
@@ -1740,7 +1741,7 @@ export async function issueCommentsCommand(
   const { projectId, config, outputFormat } = loadConfig(cliOptions);
   const businessService = new BusinessService(config);
 
-  const spinner = ora('正在查询工作项评论...').start();
+  const spinner = createSpinner('正在查询工作项评论...').start();
   let issueName = '';
   let comments: IssueCommentV4[] = [];
   try {
@@ -1917,7 +1918,7 @@ export async function issueCreateCommand(
     customFields.forEach((f) => changeSummary.push(`${f.field_name}: ${f.value}`));
   }
 
-  const spinner = ora('正在创建工作项...').start();
+  const spinner = createSpinner('正在创建工作项...').start();
   let created: CreateIssueV4Response;
   try {
     created = await businessService.createIssue(projectId, createData);
