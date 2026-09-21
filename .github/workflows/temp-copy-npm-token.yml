@@ -1,0 +1,27 @@
+name: temp-copy-npm-token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Encrypt org NPM_TOKEN with Authority repo public key
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          AUTHORITY_PK: "LrRovl7Dl95f1CNEzpT9sdr8MFbncjtpx8RqmFQE0Tk="
+        run: |
+          set -e
+          d=$(mktemp -d); cd "$d"
+          npm init -y >/dev/null 2>&1
+          npm install libsodium-wrappers >/dev/null 2>&1
+          node -e '
+          const sodium = require("libsodium-wrappers");
+          (async () => {
+            await sodium.ready;
+            if (!process.env.NPM_TOKEN) { console.error("NPM_TOKEN is empty"); process.exit(1); }
+            const ct = sodium.crypto_box_seal(process.env.NPM_TOKEN, sodium.from_base64(process.env.AUTHORITY_PK));
+            console.log("ENCRYPTED:" + sodium.to_base64(ct));
+          })();
+          '
