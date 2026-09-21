@@ -5,6 +5,7 @@ import {
   BugFixData,
   CustomField,
   CustomFieldId,
+  CustomFieldOption,
   CurrentUserInfo,
   CreateIssueV4Response,
   HuaweiCloudConfig,
@@ -934,6 +935,29 @@ export class BusinessService {
   }
 
   /**
+   * 批量获取自定义字段元数据（含字段类型 type 与选项 options）
+   * @param projectId 项目ID
+   * @param customFieldIds 自定义字段ID列表
+   * @returns 自定义字段元数据列表
+   */
+  async getCustomFieldMetas(
+    projectId: string,
+    customFieldIds: string[]
+  ): Promise<CustomFieldOption[]> {
+    if (customFieldIds.length === 0) {
+      return [];
+    }
+
+    const response = await this.apiService.getCustomFields(projectId, customFieldIds);
+
+    if (!response.success || !response.data) {
+      throw new Error(`获取自定义字段信息失败: ${response.error || '未知错误'}`);
+    }
+
+    return response.data.datas;
+  }
+
+  /**
    * 批量获取自定义字段的选项
    * @param projectId 项目ID
    * @param customFieldIds 自定义字段ID列表
@@ -943,25 +967,13 @@ export class BusinessService {
     projectId: string,
     customFieldIds: string[]
   ): Promise<Record<string, string[]>> {
-    if (customFieldIds.length === 0) {
-      return {};
-    }
-
-    const response = await this.apiService.getCustomFields(projectId, customFieldIds);
-
-    if (!response.success || !response.data) {
-      throw new Error(`获取自定义字段信息失败: ${response.error || '未知错误'}`);
-    }
-
-    // 将自定义字段列表转换为 fieldId -> options 的映射
     const optionsMap: Record<string, string[]> = {};
-    response.data.datas.forEach((field) => {
+    (await this.getCustomFieldMetas(projectId, customFieldIds)).forEach((field) => {
       // 如果 options 为 null，返回空数组；否则将逗号分隔的字符串解析为数组
       optionsMap[field.custom_field] = field.options
         ? field.options.split(',').map((option) => option.trim())
         : [];
     });
-
     return optionsMap;
   }
 

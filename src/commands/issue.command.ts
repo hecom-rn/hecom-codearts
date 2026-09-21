@@ -781,6 +781,33 @@ function parseCustomFieldUpdate(
   return { custom_field: fieldId, field_name: name, value };
 }
 
+/**
+ * 解析自定义字段条目并合并同字段重复传入：
+ * 多选字段（如 开发端）值按逗号分隔保存，同字段多次传入时合并去重为一条
+ */
+function parseCustomFieldUpdates(
+  businessService: BusinessService,
+  entries: string[]
+): IssueNewCustomField[] {
+  const merged: IssueNewCustomField[] = [];
+  const indexByField = new Map<string, number>();
+
+  entries
+    .map((entry) => parseCustomFieldUpdate(businessService, entry))
+    .forEach((field) => {
+      const index = indexByField.get(field.custom_field);
+      if (index === undefined) {
+        indexByField.set(field.custom_field, merged.length);
+        merged.push(field);
+        return;
+      }
+      const values = merged[index].value.split(',').concat(field.value.split(','));
+      merged[index].value = [...new Set(values.map((v) => v.trim()).filter((v) => v))].join(',');
+    });
+
+  return merged;
+}
+
 export async function issueUpdateCommand(
   issueId: string,
   options: IssueUpdateOptions,
@@ -889,9 +916,7 @@ export async function issueUpdateCommand(
     changeSummary.push(`实际工时: ${updateData.actual_work_hours}`);
   }
   if (options.field && options.field.length > 0) {
-    const customFields = options.field.map((entry) =>
-      parseCustomFieldUpdate(businessService, entry)
-    );
+    const customFields = parseCustomFieldUpdates(businessService, options.field);
     updateData.new_custom_fields = customFields;
     customFields.forEach((f) => changeSummary.push(`${f.field_name}: ${f.value}`));
   }
@@ -1023,6 +1048,20 @@ export async function issueWorkHourCommand(
 // ==================== options ====================
 
 type FieldOption = { id: number; name: string };
+
+// 自定义字段 type 元数据与展示标签对应（checkbox 为多选字段）
+const CUSTOM_FIELD_TYPE_LABELS: Record<string, string> = {
+  checkbox: '多选',
+  radio: '单选',
+  select: '单选',
+  textbox: '文本',
+  textarea: '文本',
+  text: '文本',
+  textArea: '文本',
+  date: '日期',
+  number: '数字',
+  user: '人员',
+};
 
 interface OptionFieldSpec {
   label: string; // 主名称（中文）
@@ -1176,9 +1215,30 @@ export async function issueOptionsCommand(
 
   // 不带字段名时列出全部可查询字段
   if (!field) {
+    // 自定义字段补充类型标注（多选/单选/文本等），便于判断字段取值方式
+    const customSpecs = specs.filter((s) => s.source === 'custom' && s.customFieldId);
+    const typeByField = new Map<string, string>();
+    (
+      await businessService.getCustomFieldMetas(
+        projectId,
+        customSpecs.map((s) => s.customFieldId!)
+      )
+    ).forEach((meta) => {
+      const label = CUSTOM_FIELD_TYPE_LABELS[meta.type];
+      if (label) {
+        typeByField.set(meta.custom_field, label);
+      }
+    });
+    const described = specs.map((s) => ({
+      ...s,
+      description:
+        s.source === 'custom' && s.customFieldId && typeByField.has(s.customFieldId)
+          ? `${s.description}（${typeByField.get(s.customFieldId)}）`
+          : s.description,
+    }));
     if (useJson) {
       logger.json(
-        specs.map((s) => ({
+        described.map((s) => ({
           field: s.label,
           aliases: s.aliases,
           description: s.description,
@@ -1188,8 +1248,8 @@ export async function issueOptionsCommand(
       return;
     }
     logger.info('可查询的字段（用法：issue options <字段>）：');
-    const labelWidth = Math.max(...specs.map((s) => displayWidth(s.label)));
-    specs.forEach((s) => {
+    const labelWidth = Math.max(...described.map((s) => displayWidth(s.label)));
+    described.forEach((s) => {
       logger.info(`  ${padCell(s.label, labelWidth + 4)}${s.aliases.join('/')}  ${s.description}`);
     });
     return;
@@ -1203,18 +1263,30 @@ export async function issueOptionsCommand(
   }
 
   if (spec.source === 'custom' && spec.customFieldId) {
-    const optionsMap = await businessService.getCustomFieldOptions(projectId, [spec.customFieldId]);
-    const values = optionsMap[spec.customFieldId] || [];
+    const metas = await businessService.getCustomFieldMetas(projectId, [spec.customFieldId]);
+    const meta = metas.find((m) => m.custom_field === spec.customFieldId);
+    const typeLabel = meta ? CUSTOM_FIELD_TYPE_LABELS[meta.type] : undefined;
+    const values = meta?.options ? meta.options.split(',').map((option) => option.trim()) : [];
     if (useJson) {
-      logger.json({ field: spec.label, options: values });
+      logger.json({ field: spec.label, type: meta?.type, options: values });
       return;
     }
+    const header = typeLabel
+      ? `${spec.label}（${spec.aliases.join('/')}，${typeLabel}）`
+      : `${spec.label}（${spec.aliases.join('/')}）`;
     if (values.length === 0) {
-      logger.info(`${spec.label}（${spec.aliases.join('/')}）：该字段为自由文本，无固定选项`);
+      logger.info(`${header}：该字段为自由文本，无固定选项`);
       return;
     }
-    logger.info(`${spec.label}（${spec.aliases.join('/')}）可选项：`);
+    logger.info(`${header}可选项：`);
     values.forEach((v) => logger.info(`  ${v}`));
+    if (typeLabel === '多选') {
+      logger.info(
+        pc.gray(
+          `  该字段支持多选：值用逗号分隔，如 -f ${spec.label}=${values[0]},${values[1] || values[0]}`
+        )
+      );
+    }
     return;
   }
 
@@ -1616,10 +1688,10 @@ export async function issueListCommand(
   }
 
   if (options.field && options.field.length > 0) {
-    request.custom_fields = options.field.map((entry) => {
-      const parsed = parseCustomFieldUpdate(businessService, entry);
-      return { custom_field: parsed.custom_field, value: parsed.value };
-    });
+    request.custom_fields = parseCustomFieldUpdates(businessService, options.field).map((f) => ({
+      custom_field: f.custom_field,
+      value: f.value,
+    }));
   }
   if (options.created) {
     request.created_time_interval = resolveTimeInterval(
@@ -1854,8 +1926,11 @@ export async function issueCreateCommand(
   }
   if (options.priority) {
     createData.priority_id = resolveEnumId(options.priority, PRIORITY_NAME_TO_ID, '优先级');
-    changeSummary.push(`优先级: ${options.priority} -> ${createData.priority_id}`);
+  } else {
+    // 接口要求创建必须携带 priority_id（Task/Bug 实测均报 PM.02100001），未指定时默认"中"
+    createData.priority_id = PRIORITY_NAME_TO_ID['中'];
   }
+  changeSummary.push(`优先级: ${options.priority || '中（默认）'} -> ${createData.priority_id}`);
   if (options.severity) {
     createData.severity_id = resolveEnumId(options.severity, SEVERITY_NAME_TO_ID, '重要程度');
     changeSummary.push(`重要程度: ${options.severity} -> ${createData.severity_id}`);
@@ -1911,9 +1986,7 @@ export async function issueCreateCommand(
     changeSummary.push(`实际工时: ${createData.actual_work_hours}`);
   }
   if (options.field && options.field.length > 0) {
-    const customFields = options.field.map((entry) =>
-      parseCustomFieldUpdate(businessService, entry)
-    );
+    const customFields = parseCustomFieldUpdates(businessService, options.field);
     createData.new_custom_fields = customFields;
     customFields.forEach((f) => changeSummary.push(`${f.field_name}: ${f.value}`));
   }

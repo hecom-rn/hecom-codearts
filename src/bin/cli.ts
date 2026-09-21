@@ -257,7 +257,7 @@ issueCmd
   .option('--module <名称或ID>', '模块名称或数字 ID，逗号分隔')
   .option(
     '-f, --field <名称=值>',
-    '自定义字段过滤，如：-f 产品模块=APP（可重复传入）',
+    '自定义字段过滤，如：-f 产品模块=APP（可重复传入；多选过滤值用逗号分隔，如 -f 开发端=手机端,网页端）',
     (value: string, previous: string[]) => [...(previous || []), value],
     []
   )
@@ -347,7 +347,7 @@ issueCmd
   .option('--actual-work-hours <hours>', '实际工时')
   .option(
     '-f, --field <名称=值>',
-    '自定义字段，如：-f 终端类型=手机端（可重复传入）',
+    '自定义字段，如：-f 终端类型=手机端（可重复传入；多选字段值用逗号分隔，如 -f 开发端=手机端,网页端）',
     (value: string, previous: string[]) => [...(previous || []), value],
     []
   )
@@ -358,10 +358,12 @@ issueCmd
       '示例：',
       '  $ codearts issue create -t task -n "任务标题" --iteration <迭代名或ID> --assigned 白宇东',
       '  $ codearts issue create -t bug -n "Bug 标题" --priority 高 -f 终端类型=手机端',
+      '  $ codearts issue create -t bug -n "Bug 标题" --priority 高 -f 开发端=手机端,网页端',
       '',
       '提示：',
-      '  Bug 类型必须带 --priority（低/中/高）',
+      '  未指定 --priority 时默认为中(2)，取值：低/中/高 或数字 ID',
       '  状态/迭代/处理人/自定义字段等取值不确定时，先用 issue options <字段> 查询可用取值',
+      '  多选自定义字段（issue options 中标注"多选"）值用逗号分隔或重复 -f 传入，同字段自动合并',
     ].join('\n')
   )
   .action(async (options, command) => {
@@ -474,7 +476,7 @@ issueCmd
   .option('--actual-work-hours <hours>', '实际工时')
   .option(
     '-f, --field <名称=值>',
-    '自定义字段，如：-f 产品模块=APP（可重复传入）',
+    '自定义字段，如：-f 产品模块=APP（可重复传入；多选字段值用逗号分隔，如 -f 开发端=手机端,网页端）',
     (value: string, previous: string[]) => [...(previous || []), value],
     []
   )
@@ -486,9 +488,11 @@ issueCmd
       '  $ codearts issue update <id> --status 已解决',
       '  $ codearts issue update <id> --iteration <迭代名或ID> --assigned 白宇东 -f 产品模块=APP',
       '  $ codearts issue update <id> -f 缺陷技术分析="空指针异常" -f AI相关=否',
+      '  $ codearts issue update <id> -f 开发端=手机端,网页端',
       '',
       '提示：',
       '  至少提供一个要更新的字段；-f 名称=值 可重复传入',
+      '  多选自定义字段（issue options 中标注"多选"）值用逗号分隔或重复 -f 传入，同字段自动合并',
       '  状态/迭代/处理人/自定义字段等取值不确定时，先用 issue options <字段> 查询可用取值',
     ].join('\n')
   )
