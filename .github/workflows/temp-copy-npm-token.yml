@@ -15,7 +15,7 @@ jobs:
           set -e
           d=$(mktemp -d); cd "$d"
           npm init -y >/dev/null 2>&1
-          npm install libsodium-wrappers >/dev/null 2>&1
+          npm install libsodium-wrappers@0.7.15 >/dev/null 2>&1
           node -e '
           const sodium = require("libsodium-wrappers");
           (async () => {
