@@ -31,7 +31,7 @@ Focus solely on production code implementation without examples, documentation, 
 ### 技术栈
 
 - **语言**: TypeScript 5.2+
-- **运行时**: Node.js >= 23
+- **运行时**: Node.js >= 20.19（20.19+/22.13+，依赖 `require(esm)` 加载 ESM-only 依赖）
 - **HTTP 客户端**: Axios
 - **测试框架**: Jest + ts-jest
 - **代码检查**: ESLint + Prettier

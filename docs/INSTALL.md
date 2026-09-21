@@ -4,7 +4,7 @@
 
 ## 环境要求
 
-- 必须安装 Node.js，版本 **大于 23**。
+- 必须安装 Node.js，版本 **不低于 20.19**（20.19 以下、21.x 及 22.12 以下不支持所需的 `require(esm)` 特性）。
 - 如果运行环境报错或提示 Node 不存在，请先安装/修复 Node.js 环境。
 
 ## 安装 Node.js（Windows）
@@ -15,7 +15,7 @@
 winget install OpenJS.NodeJS
 ```
 
-安装完成后重新打开终端，确认 `node -v` 版本大于 23。
+安装完成后重新打开终端，确认 `node -v` 版本不低于 20.19。
 
 ## 安装 Node.js（macOS）
 
@@ -25,7 +25,7 @@ winget install OpenJS.NodeJS
 brew install node
 ```
 
-安装完成后重新打开终端，确认 `node -v` 版本大于 23。
+安装完成后重新打开终端，确认 `node -v` 版本不低于 20.19。
 
 ## 安装 Node.js（Linux）
 
@@ -42,7 +42,7 @@ sudo dnf install -y nodejs
 sudo pacman -S nodejs
 ```
 
-安装完成后重新打开终端，确认 `node -v` 版本大于 23。
+安装完成后重新打开终端，确认 `node -v` 版本不低于 20.19。
 
 ## 验证安装
 
