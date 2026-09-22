@@ -27,6 +27,8 @@ import {
   TestPlanItem,
   TypeWorkHourStats,
   UpdateIssueRequest,
+  UploadAttachmentResponse,
+  UploadIssueImgResponse,
   UserAllWorkHourStats,
   UserWorkHourStats,
   UserWorkStats,
@@ -38,6 +40,27 @@ import {
 import { logger } from '../utils/logger';
 import { getCacheRootDir } from '../utils/cache-dir';
 import { ApiService } from './api.service';
+
+// 上传文件扩展名与 Content-Type 映射（未命中时使用二进制流类型）
+const MIME_TYPE_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+  zip: 'application/zip',
+  gz: 'application/gzip',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  mp4: 'video/mp4',
+};
 
 /**
  * 业务服务类
@@ -231,7 +254,7 @@ export class BusinessService {
     return issuesResponse.data?.issues || [];
   }
 
-  async addIssueNote(projectId: string, issueId: number, content: string): Promise<unknown> {
+  async addIssueComment(projectId: string, issueId: number, content: string): Promise<unknown> {
     const result = await this.apiService.addIssueNotes({
       projectUUId: projectId,
       id: String(issueId),
@@ -1449,6 +1472,98 @@ export class BusinessService {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     fs.writeFileSync(targetPath, Buffer.from(response.data));
     return targetPath;
+  }
+
+  /**
+   * 读取本地文件并构造上传用的 File 对象，文件不存在或超过大小上限时抛出异常
+   * @param filePath 本地文件路径
+   * @param maxSizeBytes 大小上限（字节）
+   * @param maxSizeLabel 大小上限文案（错误提示用）
+   */
+  private buildUploadFile(filePath: string, maxSizeBytes: number, maxSizeLabel: string): File {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      throw new Error(`文件不存在或不可读: ${filePath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`路径不是文件: ${filePath}`);
+    }
+    if (stat.size > maxSizeBytes) {
+      const sizeM = (stat.size / 1024 / 1024).toFixed(1);
+      throw new Error(
+        `文件 ${path.basename(filePath)} 大小 ${sizeM}M 超过上传上限 ${maxSizeLabel}`
+      );
+    }
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    return new File([fs.readFileSync(filePath)], path.basename(filePath), {
+      type: MIME_TYPE_BY_EXT[ext] || 'application/octet-stream',
+    });
+  }
+
+  /**
+   * 上传图片供工作项描述/评论引用（UploadIssueImg）
+   * @param projectId 项目ID
+   * @param filePath 本地图片路径（上限 5M）
+   * @returns 图片ID与 URI
+   */
+  async uploadIssueImage(projectId: string, filePath: string): Promise<UploadIssueImgResponse> {
+    const file = this.buildUploadFile(filePath, 5 * 1024 * 1024, '5M');
+    const response = await this.apiService.uploadIssueImg(projectId, file);
+    if (!response.success || !response.data) {
+      throw new Error(`上传图片失败: ${response.error || '未知错误'}`);
+    }
+    return response.data;
+  }
+
+  /**
+   * 上传工作项附件（UploadAttachments）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param filePath 本地附件路径（上限 50M）
+   * @returns 附件信息，id 为删除附件时所用的附件 ID
+   */
+  async uploadIssueAttachment(
+    projectId: string,
+    issueId: number,
+    filePath: string
+  ): Promise<UploadAttachmentResponse> {
+    const file = this.buildUploadFile(filePath, 50 * 1024 * 1024, '50M');
+    const response = await this.apiService.uploadAttachment(projectId, issueId, file);
+    if (!response.success || !response.data) {
+      throw new Error(`上传附件失败: ${response.error || '未知错误'}`);
+    }
+    return response.data;
+  }
+
+  /**
+   * 删除工作项附件（DeleteAttachment）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param attachmentId 附件ID（来自附件上传响应或 issue 详情 accessories 列表）
+   */
+  async deleteIssueAttachment(
+    projectId: string,
+    issueId: number,
+    attachmentId: number
+  ): Promise<void> {
+    const response = await this.apiService.deleteAttachment(projectId, issueId, attachmentId);
+    if (!response.success) {
+      throw new Error(response.error || '未知错误');
+    }
+  }
+
+  /**
+   * 删除工作项（删除后详情接口不可见）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   */
+  async deleteIssue(projectId: string, issueId: string): Promise<void> {
+    const response = await this.apiService.deleteIssue(projectId, issueId);
+    if (!response.success) {
+      throw new Error(response.error || '未知错误');
+    }
   }
 
   /**

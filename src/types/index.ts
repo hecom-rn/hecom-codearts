@@ -488,6 +488,22 @@ export interface CreateIssueV4Response {
   name: string; // 标题
 }
 
+// 上传图片响应 (UploadIssueImg，字段以实测为准)
+export interface UploadIssueImgResponse {
+  img_id: string; // 图片ID
+  img_url: string; // 图片URI，格式 /v1/upload/{project_id}/{yyyymm}/{file}，可直接用于工作项描述/评论的 HTML
+}
+
+// 上传附件响应 (UploadAttachments，字段以实测为准)
+export interface UploadAttachmentResponse {
+  disk_filename: string; // 云盘存储文件名
+  filename: string; // 原始文件名
+  id: number; // 附件ID，删除附件接口使用
+  issue_id: number; // 所属工作项ID
+  project_id: string; // 项目ID
+  size: string; // 文件大小
+}
+
 export interface ListChildIssuesV4Response {
   issues: IssueItem[]; // 子工作项列表
   total: number; // 子工作项总数

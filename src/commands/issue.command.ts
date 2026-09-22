@@ -1,4 +1,5 @@
 import pc from 'picocolors';
+import { confirm } from '@inquirer/prompts';
 import { BusinessService } from '../services/business.service';
 import {
   CreateIssueV4Response,
@@ -13,6 +14,7 @@ import {
   ProjectIssueStatus,
   ProjectMember,
   UpdateIssueRequest,
+  UploadAttachmentResponse,
 } from '../types';
 import { CliOptions, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
@@ -481,9 +483,9 @@ export async function issueDetailCommand(
   }
 }
 
-// ==================== addNote ====================
+// ==================== add-comment ====================
 
-export async function issueAddNoteCommand(
+export async function issueAddCommentCommand(
   issueId: string,
   notes: string,
   cliOptions: CliOptions = {}
@@ -493,7 +495,7 @@ export async function issueAddNoteCommand(
 
   const spinner = createSpinner(`正在为工作项 ${issueId} 添加评论...`).start();
   try {
-    await businessService.addIssueNote(projectId, parseInt(issueId, 10), notes);
+    await businessService.addIssueComment(projectId, parseInt(issueId, 10), notes);
     spinner.succeed('评论添加成功');
     logger.info(`  ${issueLink(projectId, parseInt(issueId, 10))}`);
   } catch (error: unknown) {
@@ -2003,4 +2005,267 @@ export async function issueCreateCommand(
 
   changeSummary.forEach((line) => logger.info(`  ${line}`));
   logger.info(`  ${issueLink(projectId, created.id)}`);
+}
+
+// ==================== upload-img ====================
+
+export interface IssueUploadImgResult {
+  file: string; // 本地文件路径
+  success: boolean;
+  imgId?: string; // 图片ID
+  imgUrl?: string; // 图片URI（接口原始返回）
+  html?: string; // 可直接嵌入描述/评论的 HTML 片段
+  error?: string;
+}
+
+export interface IssueUploadImgOptions {
+  json?: boolean; // 以 JSON 格式输出
+}
+
+// issue 描述/评论中的图片地址为 /v2/upload 前缀（网页端上传格式），接口返回的 /v1 前缀统一改写
+function buildImageHtml(imgUrl: string): string {
+  return `<img src="${imgUrl.replace(/^\/v1\/upload\//, '/v2/upload/')}">`;
+}
+
+export async function issueUploadImgCommand(
+  files: string[],
+  cliOptions: CliOptions & IssueUploadImgOptions = {}
+): Promise<void> {
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const spinner = createSpinner(`正在上传 ${files.length} 张图片...`).start();
+  const results: IssueUploadImgResult[] = [];
+  for (const file of files) {
+    try {
+      const uploaded = await businessService.uploadIssueImage(projectId, file);
+      results.push({
+        file,
+        success: true,
+        imgId: uploaded.img_id,
+        imgUrl: uploaded.img_url,
+        html: buildImageHtml(uploaded.img_url),
+      });
+    } catch (error: unknown) {
+      results.push({
+        file,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  spinner.stop();
+
+  if (cliOptions.json) {
+    logger.json(results);
+  } else {
+    results.forEach((result) => {
+      if (result.success && result.html) {
+        logger.info(result.html);
+      } else {
+        logger.error(`上传图片失败 ${result.file}: ${result.error}`);
+      }
+    });
+  }
+
+  const failed = results.filter((r) => !r.success);
+  if (failed.length > 0) {
+    throw new Error(`${failed.length}/${results.length} 张图片上传失败`);
+  }
+}
+
+// ==================== upload-attachment ====================
+
+export interface IssueUploadAttachmentResult {
+  file: string; // 本地文件路径
+  success: boolean;
+  attachment?: UploadAttachmentResponse;
+  error?: string;
+}
+
+export interface IssueUploadAttachmentOptions {
+  json?: boolean; // 以 JSON 格式输出
+}
+
+export async function issueUploadAttachmentCommand(
+  issueId: string,
+  files: string[],
+  cliOptions: CliOptions & IssueUploadAttachmentOptions = {}
+): Promise<void> {
+  const id = parseInt(issueId, 10);
+  if (isNaN(id) || id <= 0) {
+    throw new Error(`无效的工作项 ID "${issueId}"`);
+  }
+
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const spinner = createSpinner(`正在为工作项 ${id} 上传 ${files.length} 个附件...`).start();
+  const results: IssueUploadAttachmentResult[] = [];
+  for (const file of files) {
+    try {
+      const attachment = await businessService.uploadIssueAttachment(projectId, id, file);
+      results.push({ file, success: true, attachment });
+    } catch (error: unknown) {
+      results.push({
+        file,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  spinner.stop();
+
+  if (cliOptions.json) {
+    logger.json(results);
+  } else {
+    const succeeded = results.filter((r) => r.success && r.attachment);
+    if (succeeded.length > 0) {
+      spinner.succeed(
+        `附件上传成功：共 ${succeeded.length} 个${results.length > succeeded.length ? `，失败 ${results.length - succeeded.length} 个` : ''}`
+      );
+      succeeded.forEach((r) =>
+        logger.info(`  ${r.attachment!.filename} -> 附件ID ${r.attachment!.id}`)
+      );
+      logger.info(`  ${issueLink(projectId, id)}`);
+    }
+    results
+      .filter((r) => !r.success)
+      .forEach((r) => logger.error(`上传附件失败 ${r.file}: ${r.error}`));
+  }
+
+  const failed = results.filter((r) => !r.success);
+  if (failed.length > 0) {
+    throw new Error(`${failed.length}/${results.length} 个附件上传失败`);
+  }
+}
+
+// ==================== delete-attachment ====================
+
+export async function issueDeleteAttachmentCommand(
+  issueId: string,
+  targets: string[],
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  const id = parseInt(issueId, 10);
+  if (isNaN(id) || id <= 0) {
+    throw new Error(`无效的工作项 ID "${issueId}"`);
+  }
+  if (targets.length === 0) {
+    throw new Error('未提供要删除的附件（附件 ID 或文件名）');
+  }
+
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const checkSpinner = createSpinner(`正在查询工作项 ${id} 的附件列表...`).start();
+  let accessories: Array<{ attachment_id: number; file_name: string }> = [];
+  try {
+    const detail = await businessService.getIssueDetail(projectId, id);
+    accessories = (detail.accessories || []).map((a) => ({
+      attachment_id: a.attachment_id,
+      file_name: a.file_name,
+    }));
+    checkSpinner.succeed(`工作项：${detail.name}，附件 ${accessories.length} 个`);
+  } catch (error: unknown) {
+    checkSpinner.fail(`工作项 ${id} 不存在或无访问权限`);
+    throw error;
+  }
+
+  // 数字按附件 ID 直通，非数字按文件名精确匹配
+  const resolved = targets.map((target) => {
+    if (isNumericString(target)) {
+      const attachmentId = Number(target.trim());
+      const accessory = accessories.find((a) => a.attachment_id === attachmentId);
+      return { target, attachmentId, fileName: accessory?.file_name };
+    }
+    const matched = accessories.filter((a) => a.file_name === target);
+    if (matched.length === 0) {
+      const available =
+        accessories.map((a) => `${a.file_name}(${a.attachment_id})`).join('、') || '无';
+      throw new Error(`工作项 #${id} 下未找到附件 "${target}"，现有附件：${available}`);
+    }
+    if (matched.length > 1) {
+      const ids = matched.map((a) => a.attachment_id).join('、');
+      throw new Error(`附件 "${target}" 匹配到多个：附件ID ${ids}，请改用附件 ID`);
+    }
+    return { target, attachmentId: matched[0].attachment_id, fileName: matched[0].file_name };
+  });
+
+  const spinner = createSpinner(`正在删除工作项 ${id} 的 ${resolved.length} 个附件...`).start();
+  for (const item of resolved) {
+    try {
+      await businessService.deleteIssueAttachment(projectId, id, item.attachmentId);
+    } catch (error: unknown) {
+      spinner.fail(`删除附件失败: ${item.target}`);
+      throw error;
+    }
+  }
+  spinner.succeed(`附件删除成功：共 ${resolved.length} 个`);
+  resolved.forEach((item) =>
+    logger.info(`  ${item.fileName || item.target}（附件ID: ${item.attachmentId}）`)
+  );
+  logger.info(`  ${issueLink(projectId, id)}`);
+}
+
+// ==================== delete ====================
+
+export interface IssueDeleteOptions {
+  yes?: boolean; // 跳过删除确认（脚本/Agent 调用时使用）
+}
+
+export async function issueDeleteCommand(
+  ids: string[],
+  cliOptions: CliOptions & IssueDeleteOptions = {}
+): Promise<void> {
+  const issueIds = ids.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n) && n > 0);
+  if (issueIds.length === 0) {
+    logger.error('未提供有效的工作项 ID');
+    return;
+  }
+
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const checkSpinner = createSpinner('正在查询工作项信息...').start();
+  const details = await businessService.getIssueDetails(projectId, issueIds, 10);
+  checkSpinner.stop();
+
+  const detailMap = new Map(details.map((d) => [d.id, d]));
+  const missing = issueIds.filter((id) => !detailMap.has(id));
+  if (missing.length > 0) {
+    throw new Error(`工作项不存在或无访问权限: ${missing.map((id) => `#${id}`).join('、')}`);
+  }
+
+  if (!cliOptions.yes) {
+    issueIds.forEach((id) => {
+      const d = detailMap.get(id)!;
+      logger.info(`将删除 #${id}  ${d.name}（${d.tracker?.name || '-'}）`);
+    });
+    if (!process.stdin.isTTY) {
+      throw new Error(
+        '删除工作项需二次确认：交互终端会弹出确认提示，脚本/Agent 环境请添加 -y/--yes'
+      );
+    }
+    const confirmed = await confirm({
+      message: `确认删除以上 ${issueIds.length} 个工作项？`,
+      default: false,
+    });
+    if (!confirmed) {
+      logger.info('已取消删除');
+      return;
+    }
+  }
+
+  const spinner = createSpinner(`正在删除 ${issueIds.length} 个工作项...`).start();
+  for (const id of issueIds) {
+    try {
+      await businessService.deleteIssue(projectId, String(id));
+    } catch (error: unknown) {
+      spinner.fail(`删除工作项 #${id} 失败`);
+      throw error;
+    }
+  }
+  spinner.succeed(`删除成功：共 ${issueIds.length} 个工作项`);
+  issueIds.forEach((id) => logger.info(`  #${id} ${detailMap.get(id)!.name}`));
 }

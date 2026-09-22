@@ -3,7 +3,7 @@ export { configCommand } from './config.command';
 export { dailyCommand } from './daily.command';
 export { fixCommand } from './fix.command';
 export {
-  issueAddNoteCommand,
+  issueAddCommentCommand,
   issueCommentsCommand,
   issueCreateCommand,
   issueDetailCommand,

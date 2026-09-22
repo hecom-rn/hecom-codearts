@@ -34,6 +34,8 @@ import {
   ShowProjectWorkHoursResponse,
   TestPlanQueryResponse,
   UpdateIssueRequest,
+  UploadAttachmentResponse,
+  UploadIssueImgResponse,
 } from '../types';
 import { logger } from '../utils/logger';
 
@@ -523,6 +525,61 @@ export class ApiService {
         responseType: 'arraybuffer',
       }
     );
+  }
+
+  /**
+   * 上传图片（UploadIssueImg，form-data 字段名 file），返回的 img_url 可直接用于工作项描述/评论
+   * @param projectId 项目ID
+   * @param file 图片文件（上限 5M）
+   */
+  async uploadIssueImg(
+    projectId: string,
+    file: File
+  ): Promise<ApiResponse<UploadIssueImgResponse>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request(`/v2/${projectId}/img`, {
+      method: 'POST',
+      data: formData,
+      // 实例默认 Content-Type 为 JSON，会触发 FormData 转 JSON，必须覆盖为 multipart
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  /**
+   * 上传工作项附件（UploadAttachments，form-data 字段名 attachment）
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param file 附件文件（上限 50M）
+   */
+  async uploadAttachment(
+    projectId: string,
+    issueId: number,
+    file: File
+  ): Promise<ApiResponse<UploadAttachmentResponse>> {
+    const formData = new FormData();
+    formData.append('attachment', file);
+    return this.request(`/v4/projects/${projectId}/issues/${issueId}/attachments/upload`, {
+      method: 'POST',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  /**
+   * 删除工作项附件（DeleteAttachment），取消关联；页面上传的附件会被直接删除
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param attachmentId 附件ID，来自 issue 详情 accessories 列表或附件上传响应
+   */
+  async deleteAttachment(
+    projectId: string,
+    issueId: number,
+    attachmentId: number
+  ): Promise<ApiResponse<unknown>> {
+    return this.request(`/v4/projects/${projectId}/issues/${issueId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
   }
 
   /**

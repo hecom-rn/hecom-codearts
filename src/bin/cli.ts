@@ -12,13 +12,17 @@ import {
 import { dailyCommand } from '../commands/daily.command';
 import { fixCommand } from '../commands/fix.command';
 import {
-  issueAddNoteCommand,
+  issueAddCommentCommand,
   issueCommentsCommand,
   issueCreateCommand,
+  issueDeleteAttachmentCommand,
+  issueDeleteCommand,
   issueDetailCommand,
   issueListCommand,
   issueOptionsCommand,
   issueUpdateCommand,
+  issueUploadAttachmentCommand,
+  issueUploadImgCommand,
   issueWorkHourCommand,
 } from '../commands/issue.command';
 import { qualityCommand } from '../commands/quality.command';
@@ -191,6 +195,7 @@ issueCmd.addHelpText(
     '推荐流程（面向 Agent/脚本调用）：',
     '  1. 用 issue options 查询字段可用取值（状态/迭代/模块/领域/自定义字段等），再调用 list/create/update',
     '  2. 机器解析输出时加 --json（输出纯 JSON，无 loading 等附加文案）；只要 ID 用 -q；只要条数用 --count',
+    '  3. 描述与评论内容均支持 HTML：issue upload-img 返回的图片片段可直接拼入 --description 或 add-comment 内容',
     '',
     '示例：',
     '  $ codearts issue options                    # 列出全部可查询字段',
@@ -199,6 +204,10 @@ issueCmd.addHelpText(
     '  $ codearts issue detail <id> --no-download',
     '  $ codearts issue update <id> --status 已解决',
     '  $ codearts issue create -t task -n "任务标题" --iteration <迭代名或ID>',
+    '  $ codearts issue upload-img ./screenshot.png   # 返回 <img> HTML 片段，每行一个',
+    '  $ codearts issue upload-attachment <id> ./log.txt',
+    '  $ codearts issue delete-attachment <id> <附件ID或文件名>',
+    '  $ codearts issue delete <id> -y',
   ].join('\n')
 );
 
@@ -378,14 +387,23 @@ issueCmd
   });
 
 issueCmd
-  .command('addNote <id> <notes>')
-  .description('为工作项添加评论，内容支持 HTML')
-  .addHelpText('after', ['', '示例：', '  $ codearts issue addNote <id> "评论内容"'].join('\n'))
+  .command('add-comment <id> <notes>')
+  .alias('addNote')
+  .description('为工作项添加评论，内容支持 HTML（addNote 为兼容别名）')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue add-comment <id> "评论内容"',
+      '  $ codearts issue add-comment <id> "$(codearts issue upload-img ./screenshot.png) 复现截图"',
+    ].join('\n')
+  )
   .action(async (id, notes, options, command) => {
     const cliOptions = command.parent.parent.opts();
     logger.setOutputFormat(cliOptions.output);
     try {
-      await issueAddNoteCommand(id, notes, cliOptions);
+      await issueAddCommentCommand(id, notes, cliOptions);
     } catch (error: unknown) {
       logger.error(`添加评论失败: ${String(error)}`);
       process.exit(1);
@@ -503,6 +521,126 @@ issueCmd
       await issueUpdateCommand(id, options, cliOptions);
     } catch (error: unknown) {
       logger.error(`更新工作项失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue upload-img 子命令 - 上传图片，输出可嵌入描述/评论的 HTML 片段
+issueCmd
+  .command('upload-img <files...>')
+  .description('上传图片，默认输出可直接嵌入描述/评论的 HTML 片段（每行一个）')
+  .option('--json', '以 JSON 格式输出上传结果（含图片 ID 与 URI）')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue upload-img ./screenshot.png',
+      '  $ codearts issue add-comment <id> "$(codearts issue upload-img ./screenshot.png)"',
+      '  $ codearts issue create -t bug -n "标题" --description "<p>复现截图：</p>$(codearts issue upload-img ./1.png)"',
+      '',
+      '提示：',
+      '  单张图片上限 5M；输出内容为纯 HTML 片段，可直接与文字拼接后传入描述/评论',
+      '  需要图片 ID 或原始 URI 时使用 --json',
+    ].join('\n')
+  )
+  .action(async (files, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      json: options.json,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueUploadImgCommand(files, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`上传图片失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue upload-attachment 子命令 - 为工作项上传附件
+issueCmd
+  .command('upload-attachment <id> <files...>')
+  .description('为工作项上传附件，支持多个文件')
+  .option('--json', '以 JSON 格式输出上传结果')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue upload-attachment <id> ./report.pdf',
+      '  $ codearts issue upload-attachment <id> ./a.log ./b.png --json',
+      '',
+      '提示：',
+      '  单个附件上限 50M；输出中的附件 ID 可用于 issue delete-attachment',
+    ].join('\n')
+  )
+  .action(async (id, files, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      json: options.json,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueUploadAttachmentCommand(id, files, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`上传附件失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue delete-attachment 子命令 - 删除工作项附件
+issueCmd
+  .command('delete-attachment <id> <targets...>')
+  .description('删除工作项附件，入参支持附件 ID 或精确文件名')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue delete-attachment <id> 12345',
+      '  $ codearts issue delete-attachment <id> report.pdf',
+      '  $ codearts issue delete-attachment <id> report.pdf 12345',
+      '',
+      '提示：',
+      '  附件 ID 来自上传结果或 issue detail 的附件列表；同名的重复文件需改用附件 ID',
+    ].join('\n')
+  )
+  .action(async (id, targets, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueDeleteAttachmentCommand(id, targets, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`删除附件失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+// issue delete 子命令 - 删除工作项
+issueCmd
+  .command('delete <ids...>')
+  .description('删除工作项（删除后详情接口不可见），删除前需确认')
+  .option('-y, --yes', '跳过删除确认（脚本/Agent 调用时使用）')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue delete <id>            # 展示工作项信息并交互确认后删除',
+      '  $ codearts issue delete <id1> <id2> -y  # 跳过确认直接删除',
+    ].join('\n')
+  )
+  .action(async (ids, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      yes: options.yes,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueDeleteCommand(ids, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`删除工作项失败: ${String(error)}`);
       process.exit(1);
     }
   });
