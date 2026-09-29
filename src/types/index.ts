@@ -898,6 +898,40 @@ export interface AddIssueNotesResult {
   issue: unknown;
 }
 
+// 工作项修改评论相关类型 (UpdateScrumMyIssueNotes)
+export interface UpdateIssueNotesRequest {
+  id: number; // 工作项id
+  notes: string; // 评论内容
+  projectUUId: string; // 项目的32位uuid
+  type?: string; // 工作项所属项目类型，scrum
+  noteId: number; // 评论id
+}
+
+export interface UpdateIssueNotesResponse {
+  result: UpdateIssueNotesResult; // 返回信息
+  status: string; // 返回状态
+}
+
+export interface UpdateIssueNotesResult {
+  status?: string;
+}
+
+// 工作项删除评论相关类型 (DeleteScrumMyIssueNotes)
+export interface DeleteIssueNotesRequest {
+  id: number; // 评论id（注意：此接口的 id 是评论id，非工作项id）
+  projectId: string; // 项目的32位uuid
+  type?: string; // 工作项所属项目类型，scrum
+}
+
+export interface DeleteIssueNotesResponse {
+  result: DeleteIssueNotesResult; // 返回信息
+  status: string; // 返回状态
+}
+
+export interface DeleteIssueNotesResult {
+  status?: string;
+}
+
 // 当前用户信息相关类型 (ShowCurUserInfo)
 export interface CurrentUserInfo {
   id: number; // 用户ID

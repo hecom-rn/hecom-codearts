@@ -504,6 +504,51 @@ export async function issueAddCommentCommand(
   }
 }
 
+// ==================== update-comment / delete-comment ====================
+
+export async function issueUpdateCommentCommand(
+  issueId: string,
+  noteId: string,
+  notes: string,
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const spinner = createSpinner(`正在修改工作项 ${issueId} 的评论 ${noteId}...`).start();
+  try {
+    await businessService.updateIssueComment(
+      projectId,
+      parseInt(issueId, 10),
+      parseInt(noteId, 10),
+      notes
+    );
+    spinner.succeed('评论修改成功');
+    logger.info(`  ${issueLink(projectId, parseInt(issueId, 10))}`);
+  } catch (error: unknown) {
+    spinner.fail('评论修改失败');
+    throw error;
+  }
+}
+
+export async function issueDeleteCommentCommand(
+  issueId: string,
+  noteId: string,
+  cliOptions: CliOptions = {}
+): Promise<void> {
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const spinner = createSpinner(`正在删除工作项 ${issueId} 的评论 ${noteId}...`).start();
+  try {
+    await businessService.deleteIssueComment(projectId, parseInt(noteId, 10));
+    spinner.succeed('评论删除成功');
+  } catch (error: unknown) {
+    spinner.fail('评论删除失败');
+    throw error;
+  }
+}
+
 // ==================== update ====================
 
 export interface IssueUpdateOptions {
@@ -1847,7 +1892,7 @@ export async function issueCommentsCommand(
     const time = formatTimestamp(c.timestamp);
     const author = c.user?.nick_name || c.user?.user_name || '匿名';
     const text = renderHtmlText(c.comment, new Map());
-    logger.info(pc.gray(`  [${time}] ${author}: ${text}`));
+    logger.info(pc.gray(`  #${c.id} [${time}] ${author}: ${text}`));
   });
 }
 

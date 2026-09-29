@@ -8,6 +8,8 @@ import {
   CachedToken,
   CurrentUserInfo,
   CreateIssueV4Response,
+  DeleteIssueNotesRequest,
+  DeleteIssueNotesResponse,
   GetCustomFieldsResponse,
   HuaweiCloudConfig,
   IamTokenRequest,
@@ -34,6 +36,8 @@ import {
   ShowProjectWorkHoursResponse,
   TestPlanQueryResponse,
   UpdateIssueRequest,
+  UpdateIssueNotesRequest,
+  UpdateIssueNotesResponse,
   UploadAttachmentResponse,
   UploadIssueImgResponse,
 } from '../types';
@@ -639,6 +643,30 @@ export class ApiService {
   async addIssueNotes(params: AddIssueNotesRequest): Promise<ApiResponse<AddIssueNotesResponse>> {
     return this.request('/v2/issues/update-issue-notes', {
       method: 'POST',
+      data: params,
+    });
+  }
+
+  /**
+   * 工作项修改评论 (UpdateScrumMyIssueNotes)
+   */
+  async updateIssueNotes(
+    params: UpdateIssueNotesRequest
+  ): Promise<ApiResponse<UpdateIssueNotesResponse>> {
+    return this.request('/v2/workitem/issue-note', {
+      method: 'POST',
+      data: params,
+    });
+  }
+
+  /**
+   * 工作项删除评论 (DeleteScrumMyIssueNotes)
+   */
+  async deleteIssueNotes(
+    params: DeleteIssueNotesRequest
+  ): Promise<ApiResponse<DeleteIssueNotesResponse>> {
+    return this.request('/v2/workitem/issue-note', {
+      method: 'DELETE',
       data: params,
     });
   }

@@ -267,6 +267,53 @@ export class BusinessService {
   }
 
   /**
+   * 修改工作项评论
+   * @param projectId 项目ID
+   * @param issueId 工作项ID
+   * @param noteId 评论ID（issue list-comment 查询结果中的 id）
+   * @param content 新评论内容
+   */
+  async updateIssueComment(
+    projectId: string,
+    issueId: number,
+    noteId: number,
+    content: string
+  ): Promise<void> {
+    const result = await this.apiService.updateIssueNotes({
+      id: issueId,
+      notes: content,
+      projectUUId: projectId,
+      type: 'scrum',
+      noteId,
+    });
+    if (!result.success) {
+      throw new Error(result.error || '未知错误');
+    }
+    if (result.data?.status !== 'success') {
+      throw new Error(`修改工作项评论失败: ${result.data?.status || '未知错误'}`);
+    }
+  }
+
+  /**
+   * 删除工作项评论
+   * @param projectId 项目32位uuid
+   * @param noteId 评论ID（issue list-comment 查询结果中的 id，接口仅需评论id定位）
+   */
+  async deleteIssueComment(projectId: string, noteId: number): Promise<void> {
+    const result = await this.apiService.deleteIssueNotes({
+      id: noteId,
+      projectId,
+      type: 'scrum',
+    });
+    if (!result.success) {
+      throw new Error(result.error || '未知错误');
+    }
+    if (result.data?.status !== 'success') {
+      throw new Error(`删除工作项评论失败: ${result.data?.status || '未知错误'}`);
+    }
+  }
+
+  /**
    * 统计工作项进度信息
    * @param issues 工作项列表
    * @returns 工作项进度统计结果，包括总体统计和按用户分组统计

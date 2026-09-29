@@ -17,10 +17,12 @@ import {
   issueCreateCommand,
   issueDeleteAttachmentCommand,
   issueDeleteCommand,
+  issueDeleteCommentCommand,
   issueDetailCommand,
   issueListCommand,
   issueOptionsCommand,
   issueUpdateCommand,
+  issueUpdateCommentCommand,
   issueUploadAttachmentCommand,
   issueUploadImgCommand,
   issueWorkHourCommand,
@@ -309,8 +311,9 @@ issueCmd
   });
 
 issueCmd
-  .command('comments <id>')
-  .description('查询工作项评论，按时间正序输出')
+  .command('list-comment <id>')
+  .alias('comments')
+  .description('查询工作项评论，按时间正序输出（comments 为兼容别名）')
   .option('-n, --last <n>', '只显示最近 N 条')
   .option('--json', '以 JSON 格式输出评论数据')
   .addHelpText(
@@ -318,8 +321,11 @@ issueCmd
     [
       '',
       '示例：',
-      '  $ codearts issue comments <id> -n 5',
-      '  $ codearts issue comments <id> --json',
+      '  $ codearts issue list-comment <id> -n 5',
+      '  $ codearts issue list-comment <id> --json',
+      '',
+      '提示：',
+      '  文本输出中的 #编号 即评论 ID，用于 issue update-comment / delete-comment',
     ].join('\n')
   )
   .action(async (id, options, command) => {
@@ -406,6 +412,56 @@ issueCmd
       await issueAddCommentCommand(id, notes, cliOptions);
     } catch (error: unknown) {
       logger.error(`添加评论失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('update-comment <id> <note-id> <notes>')
+  .description('修改工作项的指定评论，内容支持 HTML')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue update-comment <id> <note-id> "修改后的评论内容"',
+      '',
+      '提示：',
+      '  评论 ID 通过 issue list-comment <id>（文本输出前缀或 --json 的 id 字段）查询',
+    ].join('\n')
+  )
+  .action(async (id, noteId, notes, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueUpdateCommentCommand(id, noteId, notes, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`修改评论失败: ${String(error)}`);
+      process.exit(1);
+    }
+  });
+
+issueCmd
+  .command('delete-comment <id> <note-id>')
+  .description('删除工作项的指定评论')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts issue delete-comment <id> <note-id>',
+      '',
+      '提示：',
+      '  评论 ID 通过 issue list-comment <id>（文本输出前缀或 --json 的 id 字段）查询',
+    ].join('\n')
+  )
+  .action(async (id, noteId, options, command) => {
+    const cliOptions = command.parent.parent.opts();
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await issueDeleteCommentCommand(id, noteId, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`删除评论失败: ${String(error)}`);
       process.exit(1);
     }
   });
