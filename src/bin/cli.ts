@@ -114,12 +114,41 @@ program
 
 // fix 命令
 program
-  .command('fix')
-  .description('交互式修复 bug，填写相关信息')
-  .action(async (options, command) => {
+  .command('fix [ids...]')
+  .description('修复 bug 并填写缺陷分析信息（不传 ID 为交互式，传 ID 为非交互式）')
+  .option('-a, --analysis <选项>', '缺陷技术分析（必填），取值用 issue options 缺陷技术分析 查询')
+  .option('-r, --reason <文本>', '问题原因及解决办法（选中客户反馈类 bug 时必填）')
+  .option('-i, --impact <文本>', '影响范围')
+  .option(
+    '-p, --phase <选项>',
+    '引入阶段（选中客户反馈类 bug 时必填），取值用 issue options 引入阶段 查询'
+  )
+  .option('-d, --release-date <YYYY/M/D>', '发布时间（选中客户反馈类 bug 时必填），格式 YYYY/M/D')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts fix                                    # 交互式选择 bug 并填写',
+      '  $ codearts fix <id> -a 空指针异常 -r "未判空" -i "登录模块"',
+      '  $ codearts fix <id> -a 逻辑遗漏 -r "…" -i "…" -p "需求阶段" -d "2026/10/1"',
+      '',
+      '提示：',
+      '  传 ID 时跳过所有交互，缺陷技术分析必填',
+      '  选中的 bug 含客户反馈类型（缺陷类型=客户反馈）时，-r/-p/-d 必填',
+      '  缺陷技术分析/引入阶段取值不确定时，先用 issue options <字段> 查询可用取值',
+      '  修复后 bug 状态置为已解决，开发人员/处理人按当前处理人与创建人回写',
+    ].join('\n')
+  )
+  .action(async (ids, options, command) => {
     const cliOptions = command.parent.opts();
     logger.setOutputFormat(cliOptions.output);
-    await fixCommand(cliOptions);
+    try {
+      await fixCommand(ids, options, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`修复 bug 失败: ${String(error)}`);
+      process.exit(1);
+    }
   });
 
 // quality 命令

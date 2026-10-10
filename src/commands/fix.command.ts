@@ -1,17 +1,166 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import ora from 'ora';
 import { BusinessService } from '../services/business.service';
-import { BugFixData, ConfigKey, CustomFieldId, IssueItem } from '../types';
+import { BugFixData, ConfigKey, CustomFieldId, IssueDetail, IssueItem } from '../types';
 import { CliOptions, getConfig, loadConfig } from '../utils/config-loader';
 import { issueLink } from '../utils/console';
 import { logger } from '../utils/logger';
+import { createSpinner } from '../utils/spinner';
 import checkboxSearch from '../utils/searchable-checkbox';
 
 /**
- * Fix 命令：交互式修复 bug，填写缺陷分析信息
+ * fix 命令：传 bug ID 时为非交互式修复，不传时进入交互式流程
+ * @param ids 要修复的 bug 工作项 ID 列表
+ * @param options 缺陷分析信息
  * @param cliOptions 命令行选项
  */
-export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
+export async function fixCommand(
+  ids: string[],
+  options: FixOptions,
+  cliOptions?: CliOptions
+): Promise<void> {
+  if (ids.length > 0) {
+    await fixBugsByIds(ids, options, cliOptions ?? {});
+    return;
+  }
+  await fixInteractive(cliOptions);
+}
+
+/**
+ * 非交互式修复的缺陷分析信息
+ */
+export interface FixOptions {
+  analysis?: string; // 缺陷技术分析（必填）
+  reason?: string; // 问题原因及解决办法（选中客户反馈类 bug 时必填）
+  impact?: string; // 影响范围
+  phase?: string; // 引入阶段（选中客户反馈类 bug 时必填）
+  releaseDate?: string; // 发布时间，YYYY/M/D（选中客户反馈类 bug 时必填）
+}
+
+/**
+ * 非交互式修复指定 bug：必填校验与交互式流程一致
+ */
+async function fixBugsByIds(
+  ids: string[],
+  options: FixOptions,
+  cliOptions: CliOptions
+): Promise<void> {
+  const { projectId, config } = loadConfig(cliOptions);
+  const businessService = new BusinessService(config);
+
+  const issueIds = ids.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n) && n > 0);
+  if (issueIds.length === 0) {
+    throw new Error('未提供有效的工作项 ID');
+  }
+
+  const spinner = createSpinner('正在加载数据...').start();
+  let bugs: IssueDetail[];
+  let customFieldOptions: Record<string, string[]>;
+
+  try {
+    const details = await businessService.getIssueDetails(projectId, issueIds);
+    const foundIds = new Set(details.map((d) => d.id));
+    const missing = issueIds.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`工作项不存在或无访问权限: ${missing.map((id) => `#${id}`).join('、')}`);
+    }
+    bugs = details;
+    customFieldOptions = await businessService.getCustomFieldOptions(projectId, [
+      CustomFieldId.DEFECT_TECHNICAL_ANALYSIS,
+      CustomFieldId.INTRODUCTION_PHASE,
+    ]);
+    spinner.succeed('数据加载完成');
+  } catch (error: unknown) {
+    spinner.fail('数据加载失败');
+    throw error;
+  }
+
+  const hasCustomerFeedback = bugs.some(checkIsCustomerFeedback);
+
+  // 必填与取值校验，与交互式 select 的可选项保持一致
+  const analysis = options.analysis?.trim();
+  const analysisOptions = customFieldOptions[CustomFieldId.DEFECT_TECHNICAL_ANALYSIS] || [];
+  if (!analysis) {
+    throw new Error('缺陷技术分析为必填项，请通过 -a/--analysis 指定');
+  }
+  if (!analysisOptions.includes(analysis)) {
+    throw new Error(`未知缺陷技术分析 "${analysis}"，可用选项：${analysisOptions.join('、')}`);
+  }
+
+  let introductionStage: string | undefined;
+  let releaseDate: string | undefined;
+  if (hasCustomerFeedback) {
+    const phaseOptions = (customFieldOptions[CustomFieldId.INTRODUCTION_PHASE] || [])
+      .slice()
+      .sort()
+      .reverse();
+
+    if (!options.reason?.trim()) {
+      throw new Error(
+        '选中的 bug 包含客户反馈类型，问题原因及解决办法为必填项，请通过 -r/--reason 指定'
+      );
+    }
+    if (!options.phase?.trim()) {
+      throw new Error('选中的 bug 包含客户反馈类型，引入阶段为必填项，请通过 -p/--phase 指定');
+    }
+    introductionStage = options.phase.trim();
+    if (!phaseOptions.includes(introductionStage)) {
+      throw new Error(`未知引入阶段 "${introductionStage}"，可用选项：${phaseOptions.join('、')}`);
+    }
+    if (!options.releaseDate?.trim()) {
+      throw new Error(
+        '选中的 bug 包含客户反馈类型，发布时间为必填项，请通过 -d/--release-date 指定（格式 YYYY/M/D）'
+      );
+    }
+    releaseDate = options.releaseDate.trim();
+    if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(releaseDate) || isNaN(new Date(releaseDate).getTime())) {
+      throw new Error(`发布时间格式不正确 "${releaseDate}"，请使用 YYYY/M/D 格式`);
+    }
+  }
+
+  const globalConfig = getConfig();
+  const bugFixData: BugFixData = {
+    developmentEnd: globalConfig[ConfigKey.DEVELOPMENT_END],
+    terminalType: globalConfig[ConfigKey.TERMINAL_TYPE],
+    defectAnalysis: analysis,
+    problemReason: options.reason?.trim() || undefined,
+    impactScope: options.impact?.trim() || undefined,
+    introductionStage,
+    releaseDate,
+  };
+
+  const updateSpinner = createSpinner(`正在保存缺陷信息（共 ${bugs.length} 个）...`).start();
+  try {
+    await Promise.all(bugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData)));
+    updateSpinner.succeed(`缺陷信息保存成功！共更新 ${bugs.length} 个 bug`);
+  } catch (error: unknown) {
+    updateSpinner.fail('保存失败');
+    throw error;
+  }
+
+  bugs.forEach((bug) => {
+    logger.info(`Bug 链接：${issueLink(projectId, String(bug.id))}`);
+  });
+  logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis}`);
+  if (bugFixData.problemReason) {
+    logger.info(`问题原因及解决办法: ${bugFixData.problemReason}`);
+  }
+  if (bugFixData.impactScope) {
+    logger.info(`影响范围: ${bugFixData.impactScope}`);
+  }
+  if (bugFixData.introductionStage) {
+    logger.info(`引入阶段: ${bugFixData.introductionStage}`);
+  }
+  if (bugFixData.releaseDate) {
+    logger.info(`发布时间: ${bugFixData.releaseDate}`);
+  }
+}
+
+/**
+ * 交互式修复 bug，填写缺陷分析信息
+ * @param cliOptions 命令行选项
+ */
+async function fixInteractive(cliOptions?: CliOptions): Promise<void> {
   try {
     // Step 1: 加载配置
     const { projectId, config } = loadConfig(cliOptions);
@@ -184,7 +333,7 @@ export async function fixCommand(cliOptions?: CliOptions): Promise<void> {
       });
 
       if (continueIterate) {
-        await fixCommand(cliOptions);
+        await fixInteractive(cliOptions);
       }
     } catch (error) {
       updateSpinner.fail('保存失败');
