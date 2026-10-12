@@ -130,17 +130,20 @@ async function fixBugsByIds(
   };
 
   const updateSpinner = createSpinner(`正在保存缺陷信息（共 ${bugs.length} 个）...`).start();
-  try {
-    await Promise.all(bugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData)));
+  const results = await Promise.allSettled(
+    bugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData))
+  );
+  const failedCount = results.filter((result) => result.status === 'rejected').length;
+  if (failedCount === 0) {
     updateSpinner.succeed(`缺陷信息保存成功！共更新 ${bugs.length} 个 bug`);
-  } catch (error: unknown) {
-    updateSpinner.fail('保存失败');
-    throw error;
+  } else {
+    updateSpinner.fail(`保存完成：成功 ${bugs.length - failedCount} 个，失败 ${failedCount} 个`);
+  }
+  reportFixResults(projectId, bugs, results);
+  if (failedCount > 0) {
+    throw new Error(`${failedCount} 个 bug 修复失败`);
   }
 
-  bugs.forEach((bug) => {
-    logger.info(`Bug 链接：${issueLink(projectId, String(bug.id))}`);
-  });
   logger.info(`缺陷技术分析: ${bugFixData.defectAnalysis}`);
   if (bugFixData.problemReason) {
     logger.info(`问题原因及解决办法: ${bugFixData.problemReason}`);
@@ -154,6 +157,31 @@ async function fixBugsByIds(
   if (bugFixData.releaseDate) {
     logger.info(`发布时间: ${bugFixData.releaseDate}`);
   }
+}
+
+/**
+ * 逐条汇报每个 bug 的修复结果
+ * @param projectId 项目ID
+ * @param bugs 提交修复的 bug 列表（与 results 按下标对应）
+ * @param results 每条 fixBug 的执行结果
+ * @returns 失败数量
+ */
+function reportFixResults(
+  projectId: string,
+  bugs: IssueItem[],
+  results: PromiseSettledResult<void>[]
+): number {
+  let failedCount = 0;
+  bugs.forEach((bug, index) => {
+    const result = results[index];
+    if (result.status === 'fulfilled') {
+      logger.info(`#${bug.id} 修复成功，链接：${issueLink(projectId, String(bug.id))}`);
+      return;
+    }
+    failedCount += 1;
+    logger.error(`#${bug.id} 修复失败：${String(result.reason)}`);
+  });
+  return failedCount;
 }
 
 /**
@@ -317,27 +345,27 @@ async function fixInteractive(cliOptions?: CliOptions): Promise<void> {
     // Step 8: 批量调用 API 更新所有选中的 bug
     const updateSpinner = ora(`正在保存缺陷信息（共 ${selectedBugs.length} 个）...`).start();
 
-    try {
-      await Promise.all(
-        selectedBugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData))
-      );
+    const results = await Promise.allSettled(
+      selectedBugs.map((bug) => businessService.fixBug(projectId, bug, bugFixData))
+    );
+    const failedCount = results.filter((result) => result.status === 'rejected').length;
+    if (failedCount === 0) {
       updateSpinner.succeed(`缺陷信息保存成功！共更新 ${selectedBugs.length} 个 bug`);
-      selectedBugs.forEach((bug) => {
-        logger.info(`Bug 链接：${issueLink(projectId, String(bug.id))}`);
-      });
+    } else {
+      updateSpinner.fail(
+        `保存完成：成功 ${selectedBugs.length - failedCount} 个，失败 ${failedCount} 个`
+      );
+    }
+    reportFixResults(projectId, selectedBugs, results);
 
-      // Step 9: 询问是否继续修复
-      const continueIterate = await confirm({
-        message: '是否继续修复？',
-        default: false,
-      });
+    // Step 9: 询问是否继续修复
+    const continueIterate = await confirm({
+      message: '是否继续修复？',
+      default: false,
+    });
 
-      if (continueIterate) {
-        await fixInteractive(cliOptions);
-      }
-    } catch (error) {
-      updateSpinner.fail('保存失败');
-      logger.error(`${String(error)}`);
+    if (continueIterate) {
+      await fixInteractive(cliOptions);
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'ExitPromptError') {

@@ -1171,7 +1171,7 @@ export class BusinessService {
         });
       }
 
-      await this.apiService.updateIssue(projectId, String(issue.id), updateData);
+      await this.updateIssue(projectId, String(issue.id), updateData);
     }
   }
 
