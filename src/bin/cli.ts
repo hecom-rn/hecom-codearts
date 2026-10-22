@@ -31,6 +31,7 @@ import { qualityCommand } from '../commands/quality.command';
 import { rebugChartCommand, rebugNoTagCommand } from '../commands/rebug.command';
 import { storyAllCommand, storyDetailCommand, storySingleCommand } from '../commands/story.command';
 import { upgradeCommand } from '../commands/upgrade.command';
+import { userDetailCommand } from '../commands/user.command';
 import { workHourCommand } from '../commands/work-hour.command';
 import { configExists } from '../utils/config-loader';
 import { showLogo } from '../utils/console';
@@ -214,6 +215,47 @@ storyCmd
     };
     logger.setOutputFormat(cliOptions.output);
     await storyDetailCommand(ids, cliOptions);
+  });
+
+// user 命令组 - 项目成员查询
+const userCmd = program.command('user').description('项目成员查询');
+
+userCmd.addHelpText(
+  'after',
+  [
+    '',
+    '示例：',
+    '  $ codearts user detail <用户名|数字ID|昵称>   # 查询成员详情与角色',
+    '  $ codearts user detail my --json              # 当前用户，机器解析输出',
+  ].join('\n')
+);
+
+userCmd
+  .command('detail <identifiers...>')
+  .description('查询项目成员详情与角色，支持用户名、数字 ID、昵称，my 表示当前配置用户')
+  .option('--json', '输出原始接口的完整 JSON')
+  .addHelpText(
+    'after',
+    [
+      '',
+      '示例：',
+      '  $ codearts user detail wangxiaohui',
+      '  $ codearts user detail 王晓会 2513',
+      '  $ codearts user detail my --json',
+    ].join('\n')
+  )
+  .action(async (identifiers, options, command) => {
+    const cliOptions = {
+      ...command.parent.parent.opts(),
+      json: options.json,
+    };
+    logger.setOutputFormat(cliOptions.output);
+    try {
+      await userDetailCommand(identifiers, cliOptions);
+    } catch (error: unknown) {
+      logger.error(`查询用户详情失败: ${String(error)}`);
+      process.exit(1);
+    }
   });
 
 // issue 命令组
