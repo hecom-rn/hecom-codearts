@@ -485,6 +485,20 @@ export async function issueDetailCommand(
 
 // ==================== add-comment ====================
 
+// 常见 HTML 标签白名单，用于识别评论内容是否为 HTML 格式（避免 "1 < 2" 这类纯文本误判）
+const HTML_TAG_PATTERN =
+  /<\/?(p|div|span|br|hr|a|img|ul|ol|li|table|thead|tbody|tr|td|th|h[1-6]|b|strong|i|em|u|s|code|pre|blockquote|font|section)\b[^>]*>/i;
+
+const HTML_FORMAT_SUGGESTION =
+  '评论内容不是 HTML 格式：CodeArts 评论支持 HTML 渲染，纯文本会丢失换行与排版，建议使用 <p>/<br>/<b>/<a> 等标签组织内容，图片片段可用 issue upload-img 返回的 <img> 标签直接拼入';
+
+/**
+ * 判断评论内容是否包含 HTML 标签
+ */
+function isHtmlContent(notes: string): boolean {
+  return HTML_TAG_PATTERN.test(notes);
+}
+
 export async function issueAddCommentCommand(
   issueId: string,
   notes: string,
@@ -492,6 +506,10 @@ export async function issueAddCommentCommand(
 ): Promise<void> {
   const { projectId, config } = loadConfig(cliOptions);
   const businessService = new BusinessService(config);
+
+  if (!isHtmlContent(notes)) {
+    logger.warn(HTML_FORMAT_SUGGESTION);
+  }
 
   const spinner = createSpinner(`正在为工作项 ${issueId} 添加评论...`).start();
   try {
@@ -514,6 +532,10 @@ export async function issueUpdateCommentCommand(
 ): Promise<void> {
   const { projectId, config } = loadConfig(cliOptions);
   const businessService = new BusinessService(config);
+
+  if (!isHtmlContent(notes)) {
+    logger.warn(HTML_FORMAT_SUGGESTION);
+  }
 
   const spinner = createSpinner(`正在修改工作项 ${issueId} 的评论 ${noteId}...`).start();
   try {
