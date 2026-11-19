@@ -144,10 +144,14 @@ function getDevelopmentEnd(): string {
   return developmentEnd;
 }
 
-function isCurrentDevelopmentTask(issue: IssueItemV2, developmentEnd: string): boolean {
+function isCurrentDevelopmentTask(
+  issue: IssueItemV2,
+  version: string,
+  developmentEnd: string
+): boolean {
   return (
     issue.tracker?.id === IssueTrackerId.TASK &&
-    isActiveIssueStatus(issue.status?.id) &&
+    issue.customValueNew?.[CustomFieldId.VERSION] === version &&
     issue.customValueNew?.[CustomFieldId.DEVELOPMENT_END] === developmentEnd
   );
 }
@@ -178,7 +182,9 @@ async function loadStoryTaskContext(
     const childIssues = await businessService.getChildIssues(projectId, String(story.id));
     storyTaskMap.set(
       story.id,
-      childIssues.filter((issue) => isCurrentDevelopmentTask(issue, developmentEnd))
+      childIssues.filter((issue) =>
+        isCurrentDevelopmentTask(issue, resolvedVersion, developmentEnd)
+      )
     );
   }
 
